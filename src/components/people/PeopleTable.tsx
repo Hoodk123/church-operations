@@ -25,6 +25,13 @@ export default function PeopleTable() {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addFormOpen, setAddFormOpen] = useState(false);
+
+  const [sortField, setSortField] = useState('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterFollowUp, setFilterFollowUp] = useState('');
+  const [groupBy, setGroupBy] = useState('');
+
   const supabase = createClient();
 
   const allColumns = useMemo(() => [...defaultColumns, ...optionalColumns], []);
@@ -50,8 +57,46 @@ export default function PeopleTable() {
     loadPeople();
   }, [loadPeople]);
 
+  const filteredPeople = useMemo(() => {
+    let result = [...people];
+
+    if (filterCategory) {
+      result = result.filter((p) => p.category === filterCategory);
+    }
+    if (filterFollowUp) {
+      result = result.filter((p) => p.follow_up_status === filterFollowUp);
+    }
+
+    result.sort((a, b) => {
+      const aVal = (a as any)[sortField] ?? '';
+      const bVal = (b as any)[sortField] ?? '';
+      const cmp = String(aVal).localeCompare(String(bVal));
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [people, filterCategory, filterFollowUp, sortField, sortDirection]);
+
+  const groupedPeople = useMemo(() => {
+    if (!groupBy) return null;
+    const groups: Record<string, Person[]> = {};
+    for (const person of filteredPeople) {
+      const key = (person as any)[groupBy] ?? 'Unknown';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(person);
+    }
+    return groups;
+  }, [filteredPeople, groupBy]);
+
+  const tableData = groupedPeople
+    ? Object.entries(groupedPeople).flatMap(([group, persons]) => [
+        { _isGroup: true, _groupLabel: group, _count: persons.length } as any,
+        ...persons,
+      ])
+    : filteredPeople;
+
   const table = useReactTable({
-    data: people,
+    data: tableData,
     columns: allColumns,
     state: {
       sorting,
@@ -64,6 +109,7 @@ export default function PeopleTable() {
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getRowId: (row: any) => row._isGroup ? `group-${row._groupLabel}` : row.id,
   });
 
   const handleRowClick = (person: Person) => {
@@ -105,6 +151,14 @@ export default function PeopleTable() {
           (c) => (c as any).accessorKey ?? (c as any).id
         )}
         onAddClick={() => setAddFormOpen(true)}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSortChange={(field, dir) => { setSortField(field); setSortDirection(dir); }}
+        filterCategory={filterCategory}
+        filterFollowUp={filterFollowUp}
+        onFilterChange={(cat, fu) => { setFilterCategory(cat); setFilterFollowUp(fu); }}
+        groupBy={groupBy}
+        onGroupByChange={setGroupBy}
       />
 
       <div className="rounded-lg border overflow-hidden">
@@ -143,25 +197,39 @@ export default function PeopleTable() {
                   </td>
                 </tr>
               )}
-              {table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b transition-colors hover:bg-muted/50 cursor-pointer"
-                  onClick={() => handleRowClick(row.original)}
-                >
-                  <td className="px-3 py-2 w-10">
-                    <Checkbox />
-                  </td>
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-3 py-2">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+              {table.getRowModel().rows.map((row) => {
+                const rowData = row.original as any;
+                if (rowData._isGroup) {
+                  return (
+                    <tr key={row.id} className="bg-muted/30 border-b">
+                      <td colSpan={allColumns.length + 1} className="px-3 py-2">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {rowData._groupLabel} ({rowData._count})
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr
+                    key={row.id}
+                    className="border-b transition-colors hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleRowClick(row.original)}
+                  >
+                    <td className="px-3 py-2 w-10">
+                      <Checkbox />
                     </td>
-                  ))}
-                </tr>
-              ))}
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-3 py-2">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
