@@ -48,11 +48,6 @@ export default function Dashboard() {
     load();
   }, [supabase, navigate]);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    navigate('/login');
-  }
-
   if (!member) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -69,7 +64,6 @@ export default function Dashboard() {
         lastUpdatedText={lastUpdatedText}
         onActivityOpen={() => setActivityOpen(true)}
         onSidebarToggle={() => setSidebarCollapsed((c) => !c)}
-        onLogout={handleLogout}
       />
       <div className="flex">
         <Sidebar collapsed={sidebarCollapsed} />

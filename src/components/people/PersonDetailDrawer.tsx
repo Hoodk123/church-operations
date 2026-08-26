@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, MapPin, Phone, Tag, CircleCheck, BookOpen, Droplets, MessageSquare } from 'lucide-react';
+import { User, MapPin, Phone, Tag, CircleCheck, BookOpen, Droplets, MessageSquare, Hash } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -111,9 +111,9 @@ export default function PersonDetailDrawer({
               label="Name"
               value={`${person.first_name} ${person.last_name}`}
             />
-            <DetailRow icon={User} label="Gender" value={person.gender} />
+            <DetailRow icon={User} label="Gender" value={person.gender ?? <span className="text-muted-foreground">—</span>} />
             {person.age_group && (
-              <DetailRow icon={User} label="Age Group" value={person.age_group} />
+              <DetailRow icon={Hash} label="Age Group" value={person.age_group} />
             )}
             <DetailRow icon={Phone} label="Phone" value={person.phone} />
             <DetailRow
@@ -166,6 +166,11 @@ export default function PersonDetailDrawer({
               icon={BookOpen}
               label="HBF Group"
               value={person.hbf_group ?? <span className="text-muted-foreground">Not yet assigned</span>}
+            />
+            <DetailRow
+              icon={User}
+              label="How Found Church"
+              value={person.how_found_church ?? <span className="text-muted-foreground">—</span>}
             />
             {showBaptism && (
               <DetailRow

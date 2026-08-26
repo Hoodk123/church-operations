@@ -83,12 +83,8 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
     },
   },
   {
-    accessorKey: 'location',
-    header: 'Location',
-    cell: ({ getValue }) => {
-      const val = getValue<string | null>();
-      return val ?? <span className="text-muted-foreground">—</span>;
-    },
+    accessorKey: 'phone',
+    header: 'Phone',
   },
   {
     accessorKey: 'date_registered',
@@ -99,16 +95,20 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
 
 export const optionalColumns: ColumnDef<Person, any>[] = [
   {
+    accessorKey: 'location',
+    header: 'Location',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
     accessorKey: 'gender',
     header: 'Gender',
   },
   {
     accessorKey: 'm1_status',
     header: 'M1 Status',
-  },
-  {
-    accessorKey: 'phone',
-    header: 'Phone',
   },
   {
     accessorKey: 'age_group',

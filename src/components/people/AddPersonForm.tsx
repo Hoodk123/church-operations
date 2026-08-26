@@ -4,7 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from '@/components/ui/sheet';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { categories, followUpStatuses, ageGroups, genders } from './constants';
 
 interface AddPersonFormProps {
@@ -82,25 +86,25 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-[420px] p-0 overflow-y-auto">
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>Register New Person</SheetTitle>
-        </SheetHeader>
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger render={<span />} />
+      <PopoverContent align="end" sideOffset={8} className="w-80">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-sm font-medium">Register New Person</p>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
           {error && (
-            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+            <p className="text-xs text-destructive bg-destructive/10 rounded-md px-2 py-1.5">
               {error}
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <FormField label="First name *">
               <Input
                 value={form.first_name}
                 onChange={(e) => set('first_name', e.target.value)}
                 placeholder="John"
+                className="h-8 text-xs"
               />
             </FormField>
             <FormField label="Last name *">
@@ -108,13 +112,14 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
                 value={form.last_name}
                 onChange={(e) => set('last_name', e.target.value)}
                 placeholder="Doe"
+                className="h-8 text-xs"
               />
             </FormField>
           </div>
 
           <FormField label="Gender">
             <Select value={form.gender} onValueChange={(v) => set('gender', v ?? '')}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-8 w-full text-xs">
                 <SelectValue placeholder="Select gender" />
               </SelectTrigger>
               <SelectContent>
@@ -127,7 +132,7 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
 
           <FormField label="Age group">
             <Select value={form.age_group} onValueChange={(v) => set('age_group', v ?? '')}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-8 w-full text-xs">
                 <SelectValue placeholder="Select age group" />
               </SelectTrigger>
               <SelectContent>
@@ -143,6 +148,7 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
               value={form.phone}
               onChange={(e) => set('phone', e.target.value)}
               placeholder="+250..."
+              className="h-8 text-xs"
             />
           </FormField>
 
@@ -151,12 +157,13 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
               value={form.location}
               onChange={(e) => set('location', e.target.value)}
               placeholder="Kigali, Rwanda"
+              className="h-8 text-xs"
             />
           </FormField>
 
           <FormField label="Category">
             <Select value={form.category} onValueChange={(v) => set('category', v ?? 'Visitor')}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-8 w-full text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -169,7 +176,7 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
 
           <FormField label="Follow-up status">
             <Select value={form.follow_up_status} onValueChange={(v) => set('follow_up_status', v ?? 'Not Started')}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-8 w-full text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -180,21 +187,19 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
             </Select>
           </FormField>
 
-          <SheetFooter className="pt-2">
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Saving...' : 'Register person'}
-            </Button>
-          </SheetFooter>
+          <Button type="submit" size="sm" disabled={submitting} className="w-full">
+            {submitting ? 'Saving...' : 'Register person'}
+          </Button>
         </form>
-      </SheetContent>
-    </Sheet>
+      </PopoverContent>
+    </Popover>
   );
 }
 
 function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+    <div className="space-y-1">
+      <Label className="text-[10px] text-muted-foreground">{label}</Label>
       {children}
     </div>
   );
