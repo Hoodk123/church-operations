@@ -22,6 +22,7 @@ export interface Person {
   baptism_status: string | null;
   notes: string | null;
   registered_by: string | null;
+  registered_by_name: string | null;
   created_at: string;
   updated_at: string;
 }

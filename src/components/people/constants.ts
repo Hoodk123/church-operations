@@ -21,3 +21,33 @@ export const m1Statuses = ['Not Started', 'In Progress', 'Completed'] as const;
 export const baptismStatuses = ['Not yet', 'Scheduled', 'Baptized'] as const;
 export const ageGroups = ['Child', 'Youth', 'Adult', 'Elderly'] as const;
 export const genders = ['Male', 'Female'] as const;
+
+export const filterFieldConfigs = [
+  { key: 'category', label: 'Category', values: [...categories] },
+  { key: 'follow_up_status', label: 'Follow-up Status', values: [...followUpStatuses] },
+  { key: 'gender', label: 'Gender', values: [...genders] },
+  { key: 'age_group', label: 'Age Group', values: [...ageGroups] },
+  { key: 'm1_status', label: 'M1 Status', values: [...m1Statuses] },
+  { key: 'location', label: 'Location', values: [] },
+  { key: 'assigned_to_name', label: 'Assigned To', values: [] },
+] as const;
+
+export const sortFields = [
+  { value: 'name', label: 'Name' },
+  { value: 'category', label: 'Category' },
+  { value: 'follow_up_status', label: 'Follow-up Status' },
+  { value: 'date_registered', label: 'Date Registered' },
+  { value: 'assigned_to_name', label: 'Assigned To' },
+  { value: 'location', label: 'Location' },
+  { value: 'gender', label: 'Gender' },
+  { value: 'age_group', label: 'Age Group' },
+];
+
+export const groupFields = [
+  { value: 'category', label: 'Category' },
+  { value: 'follow_up_status', label: 'Follow-up Status' },
+  { value: 'age_group', label: 'Age Group' },
+  { value: 'm1_status', label: 'M1 Status' },
+  { value: 'location', label: 'Location' },
+  { value: 'assigned_to_name', label: 'Assigned To' },
+];

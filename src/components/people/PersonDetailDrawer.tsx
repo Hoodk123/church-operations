@@ -1,15 +1,52 @@
 import { useState } from 'react';
-import { User, MapPin, Phone, Tag, CircleCheck, BookOpen, Droplets, MessageSquare, Hash } from 'lucide-react';
+import {
+  User,
+  MapPin,
+  Phone,
+  CircleCheck,
+  BookOpen,
+  Droplets,
+  MessageSquare,
+  Calendar,
+  Users,
+} from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { categoryColors, followUpStatusColors, categories, followUpStatuses, baptismStatuses } from './constants';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  categoryColors,
+  followUpStatusColors,
+  categories,
+  baptismStatuses,
+  m1Statuses,
+  genders,
+  ageGroups,
+} from './constants';
 import type { Person } from './columns';
 
 function formatDate(dateStr: string | null): string | null {
@@ -19,6 +56,374 @@ function formatDate(dateStr: string | null): string | null {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(dateStr));
+}
+
+interface PersonDetailDrawerProps {
+  person: Person | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdated: (person: Person) => void;
+  onDeleted: (id: string) => void;
+}
+
+export default function PersonDetailDrawer({
+  person,
+  open,
+  onOpenChange,
+  onUpdated,
+  onDeleted,
+}: PersonDetailDrawerProps) {
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const supabase = createClient();
+
+  if (!person) return null;
+
+  const p: Person = person;
+  const personId = p.id;
+  const showBaptism =
+    person.category === 'New Convert' || person.category === 'M1 Class';
+
+  function startEdit() {
+    setEditForm({
+      first_name: p.first_name,
+      last_name: p.last_name,
+      gender: p.gender ?? '',
+      phone: p.phone ?? '',
+      location: p.location ?? '',
+      category: p.category,
+      m1_status: p.m1_status ?? '',
+      hbf_group: p.hbf_group ?? '',
+      baptism_status: p.baptism_status ?? '',
+    });
+    setEditing(true);
+    setError('');
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setEditForm({});
+    setError('');
+  }
+
+  async function saveEdit() {
+    setSaving(true);
+    setError('');
+
+    const { data, error: err } = await supabase
+      .from('people')
+      .update({
+        first_name: editForm.first_name.trim(),
+        last_name: editForm.last_name.trim(),
+        gender: editForm.gender || null,
+        phone: editForm.phone.trim(),
+        location: editForm.location.trim() || null,
+        category: editForm.category,
+        m1_status: editForm.m1_status || null,
+        hbf_group: editForm.hbf_group.trim() || null,
+        baptism_status: editForm.baptism_status || null,
+      })
+      .eq('id', personId)
+      .select(
+        '*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)'
+      )
+      .single();
+
+    setSaving(false);
+
+    if (err) {
+      setError(err.message);
+      return;
+    }
+
+    onUpdated({
+      ...data,
+      assigned_to_name: data.assigned_to_name?.full_name ?? null,
+      registered_by_name: data.registered_by_name?.full_name ?? null,
+    });
+    setEditing(false);
+    setEditForm({});
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    const { error: err } = await supabase
+      .from('people')
+      .delete()
+      .eq('id', personId);
+    setDeleting(false);
+
+    if (err) {
+      setError(err.message);
+      setDeleteOpen(false);
+      return;
+    }
+
+    onDeleted(personId);
+  }
+
+  function setFormField(key: string, value: string) {
+    setEditForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  return (
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="w-full sm:w-[420px] p-0 overflow-y-auto">
+          <SheetHeader className="border-b px-4 py-3">
+            <SheetTitle>
+              {p.first_name} {p.last_name}
+            </SheetTitle>
+          </SheetHeader>
+
+          <div className="p-4 space-y-4">
+            {error && (
+              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
+            {/* Card 1 — Person Profile */}
+            <div className="border rounded-lg p-4 space-y-3">
+              {editing ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="First name">
+                      <Input
+                        value={editForm.first_name}
+                        onChange={(e) => setFormField('first_name', e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </FormField>
+                    <FormField label="Last name">
+                      <Input
+                        value={editForm.last_name}
+                        onChange={(e) => setFormField('last_name', e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </FormField>
+                  </div>
+                  <FormField label="Category">
+                    <Select value={editForm.category} onValueChange={(v) => setFormField('category', v ?? 'Visitor')}>
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Gender">
+                      <Select value={editForm.gender} onValueChange={(v) => setFormField('gender', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {genders.map((g) => (
+                            <SelectItem key={g} value={g}>{g}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                    <FormField label="Age Group">
+                      <Select value={editForm.age_group ?? ''} onValueChange={(v) => setFormField('age_group', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ageGroups.map((a) => (
+                            <SelectItem key={a} value={a}>{a}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                  </div>
+                  <FormField label="Phone">
+                    <Input
+                      value={editForm.phone}
+                      onChange={(e) => setFormField('phone', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </FormField>
+                  <FormField label="Location">
+                    <Input
+                      value={editForm.location}
+                      onChange={(e) => setFormField('location', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </FormField>
+                  <FormField label="M1 Status">
+                    <Select value={editForm.m1_status} onValueChange={(v) => setFormField('m1_status', v ?? '')}>
+                      <SelectTrigger className="h-8 w-full">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {m1Statuses.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="HBF Group">
+                    <Input
+                      value={editForm.hbf_group}
+                      onChange={(e) => setFormField('hbf_group', e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  </FormField>
+                  {showBaptism && (
+                    <FormField label="Baptism Status">
+                      <Select value={editForm.baptism_status} onValueChange={(v) => setFormField('baptism_status', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {baptismStatuses.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <Button size="sm" onClick={saveEdit} disabled={saving} className="flex-1">
+                      {saving ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelEdit} className="flex-1">
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-base font-semibold">
+                    {p.first_name} {p.last_name}
+                  </h3>
+                  <Badge variant="outline" className={categoryColors[p.category] ?? ''}>
+                    {p.category}
+                  </Badge>
+
+                  <div className="space-y-0">
+                    <DetailRow icon={User} label="Gender" value={p.gender ?? '—'} />
+                    <DetailRow icon={Users} label="Age Group" value={p.age_group ?? '—'} />
+                    <DetailRow icon={Phone} label="Phone" value={p.phone ?? '—'} />
+                    <DetailRow icon={MapPin} label="Location" value={p.location ?? '—'} />
+                    <DetailRow icon={CircleCheck} label="M1 Status" value={p.m1_status ?? '—'} />
+                    <DetailRow
+                      icon={BookOpen}
+                      label="HBF Group"
+                      value={p.hbf_group ?? 'Not yet assigned'}
+                    />
+                    {showBaptism && (
+                      <DetailRow
+                        icon={Droplets}
+                        label="Baptism Status"
+                        value={p.baptism_status ?? 'Not set'}
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t">
+                    <Button size="sm" variant="outline" onClick={startEdit} className="flex-1">
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeleteOpen(true)}
+                      className="flex-1"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Card 2 — Record Info */}
+            <div className="border rounded-lg p-4 space-y-0">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Record Info
+              </h3>
+              <DetailRow
+                icon={User}
+                label="Registered by"
+                value={p.registered_by_name ?? '—'}
+              />
+              <DetailRow
+                icon={Calendar}
+                label="Date registered"
+                value={formatDate(p.date_registered) ?? '—'}
+              />
+              <DetailRow
+                icon={User}
+                label="Assigned to"
+                value={p.assigned_to_name ?? 'Unassigned'}
+              />
+              <DetailRow
+                icon={CircleCheck}
+                label="Follow-up status"
+                value={
+                  <Badge variant="outline" className={followUpStatusColors[p.follow_up_status] ?? ''}>
+                    {p.follow_up_status}
+                  </Badge>
+                }
+              />
+              <DetailRow
+                icon={MessageSquare}
+                label="Last contact"
+                value={
+                  p.last_contact_date ? (
+                    formatDate(p.last_contact_date)
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">Never contacted</span>
+                  )
+                }
+              />
+              {p.notes && (
+                <DetailRow
+                  icon={MessageSquare}
+                  label="Notes"
+                  value={<p className="whitespace-pre-wrap text-sm">{p.notes}</p>}
+                />
+              )}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {p.first_name} {p.last_name}'s record?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This cannot be undone. The person's record will be permanently
+              removed from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
 }
 
 function DetailRow({
@@ -41,231 +446,17 @@ function DetailRow({
   );
 }
 
-interface PersonDetailDrawerProps {
-  person: Person | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onUpdated: (person: Person) => void;
-}
-
-export default function PersonDetailDrawer({
-  person,
-  open,
-  onOpenChange,
-  onUpdated,
-}: PersonDetailDrawerProps) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const supabase = createClient();
-
-  if (!person) return null;
-
-  const personId = person.id;
-
-  async function updateField(field: string, value: string | null) {
-    setError('');
-    const { data, error: err } = await supabase
-      .from('people')
-      .update({ [field]: value })
-      .eq('id', personId)
-      .select('*, assigned_to_name:team_members!people_assigned_to_fkey(full_name)')
-      .single();
-
-    if (err) {
-      setError(err.message);
-      return;
-    }
-
-    onUpdated({
-      ...data,
-      assigned_to_name: data.assigned_to_name?.full_name ?? null,
-    });
-    setEditing(null);
-  }
-
-  const showBaptism = person.category === 'New Convert' || person.category === 'M1 Class';
-
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:w-[420px] p-0 overflow-y-auto">
-        <SheetHeader className="border-b px-4 py-3">
-          <SheetTitle>
-            {person.first_name} {person.last_name}
-          </SheetTitle>
-        </SheetHeader>
-
-        <div className="p-4 space-y-4">
-          {error && (
-            <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
-              {error}
-            </p>
-          )}
-
-          {/* Card 1 — Identity */}
-          <div className="border rounded-lg p-4 space-y-1">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Identity
-            </h3>
-            <DetailRow
-              icon={User}
-              label="Name"
-              value={`${person.first_name} ${person.last_name}`}
-            />
-            <DetailRow icon={User} label="Gender" value={person.gender ?? <span className="text-muted-foreground">—</span>} />
-            {person.age_group && (
-              <DetailRow icon={Hash} label="Age Group" value={person.age_group} />
-            )}
-            <DetailRow icon={Phone} label="Phone" value={person.phone} />
-            <DetailRow
-              icon={MapPin}
-              label="Location"
-              value={person.location ?? <span className="text-muted-foreground">—</span>}
-            />
-          </div>
-
-          {/* Card 2 — Church Journey */}
-          <div className="border rounded-lg p-4 space-y-1">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Church Journey
-            </h3>
-            <DetailRow
-              icon={Tag}
-              label="Category"
-              value={
-                editing === 'category' ? (
-                  <Select
-                    value={person.category}
-                    onValueChange={(v) => updateField('category', v)}
-                  >
-                    <SelectTrigger className="h-7 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className={`${categoryColors[person.category] ?? ''} cursor-pointer`}
-                    onClick={() => setEditing('category')}
-                  >
-                    {person.category}
-                  </Badge>
-                )
-              }
-            />
-            <DetailRow
-              icon={CircleCheck}
-              label="M1 Status"
-              value={person.m1_status ?? <span className="text-muted-foreground">—</span>}
-            />
-            <DetailRow
-              icon={BookOpen}
-              label="HBF Group"
-              value={person.hbf_group ?? <span className="text-muted-foreground">Not yet assigned</span>}
-            />
-            <DetailRow
-              icon={User}
-              label="How Found Church"
-              value={person.how_found_church ?? <span className="text-muted-foreground">—</span>}
-            />
-            {showBaptism && (
-              <DetailRow
-                icon={Droplets}
-                label="Baptism Status"
-                value={
-                  editing === 'baptism_status' ? (
-                    <Select
-                      value={person.baptism_status ?? ''}
-                      onValueChange={(v) => updateField('baptism_status', v || null)}
-                    >
-                      <SelectTrigger className="h-7 w-full">
-                        <SelectValue placeholder="Not set" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {baptismStatuses.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <span
-                      className="cursor-pointer hover:underline"
-                      onClick={() => setEditing('baptism_status')}
-                    >
-                      {person.baptism_status ?? <span className="text-muted-foreground">Not set</span>}
-                    </span>
-                  )
-                }
-              />
-            )}
-          </div>
-
-          {/* Card 3 — Follow-up */}
-          <div className="border rounded-lg p-4 space-y-1">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Follow-up
-            </h3>
-            <DetailRow
-              icon={CircleCheck}
-              label="Follow-up Status"
-              value={
-                editing === 'follow_up_status' ? (
-                  <Select
-                    value={person.follow_up_status}
-                    onValueChange={(v) => updateField('follow_up_status', v)}
-                  >
-                    <SelectTrigger className="h-7 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {followUpStatuses.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className={`${followUpStatusColors[person.follow_up_status] ?? ''} cursor-pointer`}
-                    onClick={() => setEditing('follow_up_status')}
-                  >
-                    {person.follow_up_status}
-                  </Badge>
-                )
-              }
-            />
-            <DetailRow
-              icon={User}
-              label="Assigned To"
-              value={
-                person.assigned_to_name ?? <span className="text-muted-foreground">Unassigned</span>
-              }
-            />
-            <DetailRow
-              icon={MessageSquare}
-              label="Last Contact"
-              value={
-                person.last_contact_date ? (
-                  formatDate(person.last_contact_date)
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400">Never contacted</span>
-                )
-              }
-            />
-            {person.notes && (
-              <DetailRow
-                icon={MessageSquare}
-                label="Notes"
-                value={<p className="whitespace-pre-wrap text-sm">{person.notes}</p>}
-              />
-            )}
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
   );
 }

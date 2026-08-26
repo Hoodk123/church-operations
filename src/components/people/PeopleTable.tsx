@@ -2,16 +2,17 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   flexRender,
-  type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table';
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import PeopleTableToolbar from './PeopleTableToolbar';
+import PeopleTableToolbar, {
+  type FilterState,
+  type SortItem,
+  type GroupState,
+} from './PeopleTableToolbar';
 import PersonDetailDrawer from './PersonDetailDrawer';
 import AddPersonForm from './AddPersonForm';
 import { defaultColumns, optionalColumns, type Person } from './columns';
@@ -20,17 +21,14 @@ export default function PeopleTable() {
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [addFormOpen, setAddFormOpen] = useState(false);
 
-  const [sortField, setSortField] = useState('name');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterFollowUp, setFilterFollowUp] = useState('');
-  const [groupBy, setGroupBy] = useState('');
+  const [sortItems, setSortItems] = useState<SortItem[]>([]);
+  const [filters, setFilters] = useState<FilterState>({});
+  const [groupState, setGroupState] = useState<GroupState>(null);
 
   const supabase = createClient();
 
@@ -39,7 +37,7 @@ export default function PeopleTable() {
   const loadPeople = useCallback(async () => {
     const { data } = await supabase
       .from('people')
-      .select('*, assigned_to_name:team_members!people_assigned_to_fkey(full_name)')
+      .select('*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)')
       .order('updated_at', { ascending: false });
 
     if (data) {
@@ -47,6 +45,7 @@ export default function PeopleTable() {
         data.map((r: any) => ({
           ...r,
           assigned_to_name: r.assigned_to_name?.full_name ?? null,
+          registered_by_name: r.registered_by_name?.full_name ?? null,
         }))
       );
     }
@@ -60,56 +59,80 @@ export default function PeopleTable() {
   const filteredPeople = useMemo(() => {
     let result = [...people];
 
-    if (filterCategory) {
-      result = result.filter((p) => p.category === filterCategory);
-    }
-    if (filterFollowUp) {
-      result = result.filter((p) => p.follow_up_status === filterFollowUp);
+    // Apply multi-field filters (AND across fields, OR within field)
+    for (const [field, values] of Object.entries(filters)) {
+      if (values.length > 0) {
+        result = result.filter((p) => {
+          const val = (p as any)[field];
+          return values.includes(val);
+        });
+      }
     }
 
-    result.sort((a, b) => {
-      const aVal = (a as any)[sortField] ?? '';
-      const bVal = (b as any)[sortField] ?? '';
-      const cmp = String(aVal).localeCompare(String(bVal));
-      return sortDirection === 'asc' ? cmp : -cmp;
-    });
+    // Apply global search
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((p) => {
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        const phone = (p.phone ?? '').toLowerCase();
+        const location = (p.location ?? '').toLowerCase();
+        return fullName.includes(q) || phone.includes(q) || location.includes(q);
+      });
+    }
+
+    // Apply multi-sort (first item is primary sort)
+    if (sortItems.length > 0) {
+      result.sort((a, b) => {
+        for (const sort of sortItems) {
+          const aVal = (a as any)[sort.field] ?? '';
+          const bVal = (b as any)[sort.field] ?? '';
+          const cmp = String(aVal).localeCompare(String(bVal));
+          if (cmp !== 0) return sort.direction === 'asc' ? cmp : -cmp;
+        }
+        return 0;
+      });
+    }
 
     return result;
-  }, [people, filterCategory, filterFollowUp, sortField, sortDirection]);
+  }, [people, filters, sortItems, search]);
 
   const groupedPeople = useMemo(() => {
-    if (!groupBy) return null;
+    if (!groupState) return null;
     const groups: Record<string, Person[]> = {};
     for (const person of filteredPeople) {
-      const key = (person as any)[groupBy] ?? 'Unknown';
+      const key = (person as any)[groupState.field] ?? 'Unknown';
       if (!groups[key]) groups[key] = [];
       groups[key].push(person);
     }
-    return groups;
-  }, [filteredPeople, groupBy]);
 
-  const tableData = groupedPeople
-    ? Object.entries(groupedPeople).flatMap(([group, persons]) => [
-        { _isGroup: true, _groupLabel: group, _count: persons.length } as any,
+    // Sort groups by key
+    const sorted = Object.entries(groups).sort(([a], [b]) => {
+      const cmp = a.localeCompare(b);
+      return groupState.direction === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [filteredPeople, groupState]);
+
+  const tableData = useMemo(() => {
+    if (groupedPeople) {
+      return groupedPeople.flatMap(([_group, persons]) => [
+        { _isGroup: true, _groupLabel: _group, _count: persons.length } as any,
         ...persons,
-      ])
-    : filteredPeople;
+      ]);
+    }
+    return filteredPeople;
+  }, [groupedPeople, filteredPeople]);
 
   const table = useReactTable({
     data: tableData,
     columns: allColumns,
     state: {
-      sorting,
       columnVisibility,
-      globalFilter: search,
     },
-    onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setSearch,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getRowId: (row: any) => row._isGroup ? `group-${row._groupLabel}` : row.id,
+    getRowId: (row: any) => (row._isGroup ? `group-${row._groupLabel}` : row.id),
   });
 
   const handleRowClick = (person: Person) => {
@@ -118,10 +141,14 @@ export default function PeopleTable() {
   };
 
   const handlePersonUpdated = (updated: Person) => {
-    setPeople((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
+    setPeople((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     setSelectedPerson(updated);
+  };
+
+  const handlePersonDeleted = (id: string) => {
+    setPeople((prev) => prev.filter((p) => p.id !== id));
+    setDrawerOpen(false);
+    setSelectedPerson(null);
   };
 
   if (loading) {
@@ -141,24 +168,17 @@ export default function PeopleTable() {
         onColumnVisibilityChange={(col, vis) =>
           setColumnVisibility((prev) => ({ ...prev, [col]: vis }))
         }
-        visibleColumnIds={allColumns
-          .filter((c) => {
-            const id = (c as any).accessorKey ?? (c as any).id;
-            return columnVisibility[id] !== false;
-          })
-          .map((c) => (c as any).accessorKey ?? (c as any).id)}
         allColumnIds={allColumns.map(
           (c) => (c as any).accessorKey ?? (c as any).id
         )}
         onAddClick={() => setAddFormOpen(true)}
-        sortField={sortField}
-        sortDirection={sortDirection}
-        onSortChange={(field, dir) => { setSortField(field); setSortDirection(dir); }}
-        filterCategory={filterCategory}
-        filterFollowUp={filterFollowUp}
-        onFilterChange={(cat, fu) => { setFilterCategory(cat); setFilterFollowUp(fu); }}
-        groupBy={groupBy}
-        onGroupByChange={setGroupBy}
+        sortItems={sortItems}
+        onSortChange={setSortItems}
+        filters={filters}
+        onFiltersChange={setFilters}
+        groupState={groupState}
+        onGroupChange={setGroupState}
+        people={people}
       />
 
       <div className="rounded-lg border overflow-hidden">
@@ -202,7 +222,10 @@ export default function PeopleTable() {
                 if (rowData._isGroup) {
                   return (
                     <tr key={row.id} className="bg-muted/30 border-b">
-                      <td colSpan={allColumns.length + 1} className="px-3 py-2">
+                      <td
+                        colSpan={allColumns.length + 1}
+                        className="px-3 py-2"
+                      >
                         <span className="text-xs font-medium text-muted-foreground">
                           {rowData._groupLabel} ({rowData._count})
                         </span>
@@ -241,6 +264,7 @@ export default function PeopleTable() {
           open={drawerOpen}
           onOpenChange={setDrawerOpen}
           onUpdated={handlePersonUpdated}
+          onDeleted={handlePersonDeleted}
         />
       )}
 
