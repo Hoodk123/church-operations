@@ -7,7 +7,6 @@ import {
   Columns3,
   Plus,
   X,
-  Check,
   ChevronLeft,
   Trash2,
 } from 'lucide-react';
@@ -192,18 +191,11 @@ export default function PeopleTableToolbar({
   );
 }
 
-function SortDropdown({
-  sortItems,
-  onSortChange,
-}: {
+function SortDropdown({ sortItems, onSortChange }: {
   sortItems: SortItem[];
   onSortChange: (items: SortItem[]) => void;
 }) {
   const usedFields = new Set(sortItems.map((s) => s.field));
-
-  function addSort(field: string) {
-    onSortChange([...sortItems, { field, direction: 'asc' }]);
-  }
 
   return (
     <DropdownMenu>
@@ -212,27 +204,26 @@ function SortDropdown({
         Sort
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" sideOffset={4} className="w-52">
-        <DropdownMenuLabel className="text-xs">Add sort by</DropdownMenuLabel>
+        <div className="px-2 py-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Add sort by</p>
+        </div>
         <DropdownMenuSeparator />
-        <DropdownMenuRadioGroup
-          value=""
-          onValueChange={(v) => { if (v) addSort(v); }}
-        >
-          {sortFields.map((f) => (
-            <DropdownMenuRadioItem
-              key={f.value}
-              value={f.value}
-              disabled={usedFields.has(f.value)}
-            >
-              {f.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        {sortFields.map((f) => (
+          <DropdownMenuItem
+            key={f.value}
+            disabled={usedFields.has(f.value)}
+            onSelect={(e) => {
+              e.preventDefault();
+              onSortChange([...sortItems, { field: f.value, direction: 'asc' }]);
+            }}
+          >
+            {f.label}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
 function FilterDropdown({
   filters,
   onFiltersChange,
@@ -360,30 +351,15 @@ function FilterDropdown({
               {filteredValues.length === 0 && (
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">No values found</p>
               )}
-              {filteredValues.map((val) => {
-                const checked = selectedValues.includes(val);
-                return (
-                  <DropdownMenuItem
-                    key={val}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      toggleValue(val);
-                    }}
-                    className={checked ? 'bg-muted' : ''}
-                  >
-                    <div
-                      className={`flex size-3.5 items-center justify-center rounded-sm border shrink-0 ${
-                        checked
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-muted-foreground/30'
-                      }`}
-                    >
-                      {checked && <Check className="size-2.5" />}
-                    </div>
-                    <span>{val}</span>
-                  </DropdownMenuItem>
-                );
-              })}
+              {filteredValues.map((val) => (
+                <DropdownMenuCheckboxItem
+                  key={val}
+                  checked={selectedValues.includes(val)}
+                  onCheckedChange={() => toggleValue(val)}
+                >
+                  {val}
+                </DropdownMenuCheckboxItem>
+              ))}
             </div>
           </>
         )}

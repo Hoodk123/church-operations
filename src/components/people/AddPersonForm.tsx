@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { categories, followUpStatuses, ageGroups, genders, m1Statuses, baptismStatuses } from './constants';
 
 interface AddPersonFormProps {
@@ -155,12 +156,13 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Register New Person</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <ScrollArea className="w-full max-h-[70vh] pr-3">
+          <form onSubmit={handleSubmit} className="space-y-3">
           {error && (
             <p className="text-xs text-destructive bg-destructive/10 rounded-md px-2 py-1.5">
               {error}
@@ -310,7 +312,8 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Saving...' : 'Register person'}
           </Button>
-        </form>
+          </form>
+          </ScrollArea>
       </DialogContent>
     </Dialog>
   );
