@@ -387,6 +387,13 @@ export default function PersonDetailDrawer({
                   )
                 }
               />
+              {p.contact_preference && (
+                <DetailRow
+                  icon={MessageSquare}
+                  label="Preferred contact"
+                  value={p.contact_preference}
+                />
+              )}
               {p.notes && (
                 <DetailRow
                   icon={MessageSquare}

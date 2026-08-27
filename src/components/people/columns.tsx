@@ -23,6 +23,7 @@ export interface Person {
   notes: string | null;
   registered_by: string | null;
   registered_by_name: string | null;
+  contact_preference: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuItem,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -178,10 +179,7 @@ function SortDropdown({
   }
 
   function addSort() {
-    onSortChange([
-      ...sortItems,
-      { field: 'name', direction: 'asc' },
-    ]);
+    onSortChange([...sortItems, { field: 'name', direction: 'asc' }]);
   }
 
   return (
@@ -204,12 +202,14 @@ function SortDropdown({
         )}
 
         {sortItems.map((sort, idx) => (
-          <div key={idx} className="flex items-center gap-1 px-1 py-0.5">
-            <GripVertical className="size-3.5 shrink-0 text-muted-foreground/50" />
+          <div key={idx} className="flex items-center gap-0.5 px-1 py-0.5">
+            <GripVertical className="size-3.5 shrink-0 text-muted-foreground/50 ml-0.5" />
 
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="flex-1 text-xs">
-                {sortFields.find((f) => f.value === sort.field)?.label ?? sort.field}
+              <DropdownMenuSubTrigger className="flex-1 text-xs min-w-0">
+                <span className="truncate">
+                  {sortFields.find((f) => f.value === sort.field)?.label ?? sort.field}
+                </span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
                 {sortFields.map((f) => (
@@ -224,44 +224,37 @@ function SortDropdown({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-1.5 text-[10px] shrink-0"
-              onClick={() =>
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
                 updateSort(idx, {
                   direction: sort.direction === 'asc' ? 'desc' : 'asc',
-                })
-              }
+                });
+              }}
+              className="w-auto px-1.5 text-[10px] font-mono shrink-0"
             >
               {isDateField(sort.field)
-                ? sort.direction === 'asc'
-                  ? 'Oldest'
-                  : 'Newest'
-                : sort.direction === 'asc'
-                  ? 'A → Z'
-                  : 'Z → A'}
-            </Button>
+                ? sort.direction === 'asc' ? 'Oldest' : 'Newest'
+                : sort.direction === 'asc' ? 'A → Z' : 'Z → A'}
+            </DropdownMenuItem>
 
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-5 shrink-0 text-muted-foreground hover:text-destructive"
-              onClick={() => removeSort(idx)}
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                removeSort(idx);
+              }}
+              className="w-auto px-1 text-muted-foreground hover:text-destructive shrink-0"
             >
               <Trash2 className="size-3" />
-            </Button>
+            </DropdownMenuItem>
           </div>
         ))}
 
         <DropdownMenuSeparator />
-        <button
-          onClick={addSort}
-          className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
+        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); addSort(); }}>
           <Plus className="size-3.5" />
           Add sort
-        </button>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -346,10 +339,13 @@ function FilterDropdown({
             {filterFieldConfigs.map((field) => {
               const count = (filters[field.key] ?? []).length;
               return (
-                <button
+                <DropdownMenuItem
                   key={field.key}
-                  onClick={() => openField(field.key)}
-                  className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs hover:bg-muted transition-colors"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    openField(field.key);
+                  }}
+                  className="justify-between"
                 >
                   <span>{field.label}</span>
                   {count > 0 ? (
@@ -359,16 +355,22 @@ function FilterDropdown({
                   ) : (
                     <span className="text-muted-foreground">›</span>
                   )}
-                </button>
+                </DropdownMenuItem>
               );
             })}
           </>
         ) : (
           <>
             <div className="flex items-center gap-1 px-2 py-1.5">
-              <button onClick={goBack} className="rounded p-0.5 hover:bg-muted transition-colors">
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  goBack();
+                }}
+                className="w-auto p-1"
+              >
                 <ChevronLeft className="size-3.5" />
-              </button>
+              </DropdownMenuItem>
               <span className="text-xs font-medium">{fieldConfig?.label}</span>
             </div>
             <div className="px-2 pb-1.5">
@@ -388,15 +390,16 @@ function FilterDropdown({
               {filteredValues.map((val) => {
                 const checked = selectedValues.includes(val);
                 return (
-                  <button
+                  <DropdownMenuItem
                     key={val}
-                    onClick={() => toggleValue(val)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors ${
-                      checked ? 'bg-muted' : 'hover:bg-muted'
-                    }`}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      toggleValue(val);
+                    }}
+                    className={checked ? 'bg-muted' : ''}
                   >
                     <div
-                      className={`flex size-3.5 items-center justify-center rounded-sm border ${
+                      className={`flex size-3.5 items-center justify-center rounded-sm border shrink-0 ${
                         checked
                           ? 'border-primary bg-primary text-primary-foreground'
                           : 'border-muted-foreground/30'
@@ -405,7 +408,7 @@ function FilterDropdown({
                       {checked && <Check className="size-2.5" />}
                     </div>
                     <span>{val}</span>
-                  </button>
+                  </DropdownMenuItem>
                 );
               })}
             </div>
@@ -441,14 +444,6 @@ function GroupDropdown({
       <DropdownMenuContent align="start" sideOffset={4} className="w-56">
         <div className="flex items-center justify-between px-2 py-1.5">
           <span className="text-xs font-medium text-muted-foreground">Group by</span>
-          {groupState && (
-            <button
-              onClick={() => onGroupChange(null)}
-              className="rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors"
-            >
-              <Trash2 className="size-3" />
-            </button>
-          )}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup
@@ -477,24 +472,37 @@ function GroupDropdown({
             <div className="px-2 py-1">
               <p className="text-[10px] text-muted-foreground mb-1">Direction</p>
               <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  variant={groupState.direction === 'asc' ? 'default' : 'ghost'}
-                  className="flex-1 text-[10px] h-6"
-                  onClick={() => onGroupChange({ ...groupState, direction: 'asc' })}
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onGroupChange({ ...groupState, direction: 'asc' });
+                  }}
+                  className={`flex-1 justify-center text-[10px] ${groupState.direction === 'asc' ? 'bg-primary text-primary-foreground' : ''}`}
                 >
                   A → Z
-                </Button>
-                <Button
-                  size="sm"
-                  variant={groupState.direction === 'desc' ? 'default' : 'ghost'}
-                  className="flex-1 text-[10px] h-6"
-                  onClick={() => onGroupChange({ ...groupState, direction: 'desc' })}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onGroupChange({ ...groupState, direction: 'desc' });
+                  }}
+                  className={`flex-1 justify-center text-[10px] ${groupState.direction === 'desc' ? 'bg-primary text-primary-foreground' : ''}`}
                 >
                   Z → A
-                </Button>
+                </DropdownMenuItem>
               </div>
             </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                onGroupChange(null);
+              }}
+              className="text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+              Clear grouping
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>

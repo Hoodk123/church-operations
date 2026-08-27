@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { parsePhoneNumber } from 'libphonenumber-js';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { categories, followUpStatuses, ageGroups, genders } from './constants';
+import { categories, followUpStatuses, ageGroups, genders, m1Statuses, baptismStatuses } from './constants';
 
 interface AddPersonFormProps {
   open: boolean;
@@ -27,6 +28,10 @@ interface FormState {
   category: string;
   follow_up_status: string;
   age_group: string;
+  m1_status: string;
+  how_found_church: string;
+  baptism_status: string;
+  contact_preference: string;
 }
 
 const emptyForm: FormState = {
@@ -38,22 +43,60 @@ const emptyForm: FormState = {
   category: 'Visitor',
   follow_up_status: 'Not Started',
   age_group: '',
+  m1_status: '',
+  how_found_church: '',
+  baptism_status: '',
+  contact_preference: '',
 };
+
+function validateRwandaPhone(value: string): { valid: boolean; formatted: string; error?: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, formatted: '', error: 'Phone number is required' };
+
+  // Try parsing with Rwanda country code
+  const withCode = trimmed.startsWith('+') ? trimmed : `+250${trimmed.replace(/^0/, '')}`;
+  const parsed = parsePhoneNumber(withCode);
+
+  if (parsed && parsed.isValid()) {
+    return { valid: true, formatted: parsed.formatInternational() };
+  }
+
+  // Fallback: regex check for Rwanda format
+  const rwRegex = /^(?:\+250|0)?7[2398]\d{7}$/;
+  if (rwRegex.test(trimmed)) {
+    const digits = trimmed.replace(/^(?:\+250|0)/, '');
+    return { valid: true, formatted: `+250 ${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}` };
+  }
+
+  return {
+    valid: false,
+    formatted: trimmed,
+    error: 'Invalid Rwanda phone number. Use format: +250 7XX XXX XXX or 07XXXXXXXX',
+  };
+}
 
 export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPersonFormProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const supabase = createClient();
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
+    if (key === 'phone') setPhoneError('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.first_name.trim() || !form.last_name.trim()) {
       setError('First name and last name are required.');
+      return;
+    }
+
+    const phoneValidation = validateRwandaPhone(form.phone);
+    if (!phoneValidation.valid) {
+      setPhoneError(phoneValidation.error!);
       return;
     }
 
@@ -77,11 +120,15 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       gender: form.gender || null,
-      phone: form.phone.trim(),
+      phone: phoneValidation.formatted,
       location: form.location.trim() || null,
       category: form.category,
       follow_up_status: form.follow_up_status,
       age_group: form.age_group || null,
+      m1_status: form.m1_status || null,
+      how_found_church: form.how_found_church.trim() || null,
+      baptism_status: form.baptism_status || null,
+      contact_preference: form.contact_preference || null,
       registered_by: member?.id ?? null,
     });
 
@@ -100,12 +147,15 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) setForm(emptyForm);
     setError('');
+    setPhoneError('');
     onOpenChange(nextOpen);
   }
 
+  const showBaptism = form.category === 'New Convert' || form.category === 'M1 Class';
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Register New Person</DialogTitle>
         </DialogHeader>
@@ -161,12 +211,15 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
             </FormField>
           </div>
 
-          <FormField label="Phone">
+          <FormField label="Phone *">
             <Input
               value={form.phone}
               onChange={(e) => set('phone', e.target.value)}
-              placeholder="+250..."
+              placeholder="+250 7XX XXX XXX"
             />
+            {phoneError && (
+              <p className="text-[11px] text-destructive mt-1">{phoneError}</p>
+            )}
           </FormField>
 
           <FormField label="Location">
@@ -203,6 +256,56 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
               </Select>
             </FormField>
           </div>
+
+          <FormField label="How did they find the church?">
+            <Input
+              value={form.how_found_church}
+              onChange={(e) => set('how_found_church', e.target.value)}
+              placeholder="e.g. Friend, Social media, Walk-in"
+            />
+          </FormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="M1 Status">
+              <Select value={form.m1_status} onValueChange={(v) => set('m1_status', v ?? '')}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {m1Statuses.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+            {showBaptism && (
+              <FormField label="Baptism Status">
+                <Select value={form.baptism_status} onValueChange={(v) => set('baptism_status', v ?? '')}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {baptismStatuses.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+            )}
+          </div>
+
+          <FormField label="How to reach you?">
+            <Select value={form.contact_preference} onValueChange={(v) => set('contact_preference', v ?? '')}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select preferred contact method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                <SelectItem value="SMS">SMS</SelectItem>
+                <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
 
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Saving...' : 'Register person'}
