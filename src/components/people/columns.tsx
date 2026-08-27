@@ -78,20 +78,26 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ? (
-        <span>{val}</span>
+        <span className="whitespace-nowrap">{val}</span>
       ) : (
-        <span className="text-muted-foreground">Unassigned</span>
+        <span className="text-muted-foreground">—</span>
       );
     },
   },
   {
     accessorKey: 'phone',
     header: 'Phone',
+    cell: ({ getValue }) => {
+      const val = getValue<string>();
+      return <span className="whitespace-nowrap font-mono text-xs">{val}</span>;
+    },
   },
   {
     accessorKey: 'date_registered',
     header: 'Registered',
-    cell: ({ getValue }) => formatDate(getValue<string>()),
+    cell: ({ getValue }) => (
+      <span className="whitespace-nowrap">{formatDate(getValue<string>())}</span>
+    ),
   },
 ];
 
@@ -107,14 +113,26 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'gender',
     header: 'Gender',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
   },
   {
     accessorKey: 'm1_status',
     header: 'M1 Status',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
   },
   {
     accessorKey: 'age_group',
     header: 'Age Group',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
   },
   {
     accessorKey: 'hbf_group',
@@ -127,6 +145,10 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'baptism_status',
     header: 'Baptism Status',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
   },
   {
     accessorKey: 'how_found_church',

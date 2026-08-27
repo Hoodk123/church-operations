@@ -10,7 +10,6 @@ import {
   Check,
   ChevronLeft,
   Trash2,
-  GripVertical,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +23,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { type Person } from './columns';
 import {
@@ -130,6 +126,44 @@ export default function PeopleTableToolbar({
         </Button>
       </div>
 
+      {sortItems.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {sortItems.map((sort, idx) => (
+            <div key={idx} className="inline-flex items-center gap-1 rounded-md border bg-muted px-2 py-0.5 text-xs">
+              <ArrowUpDown className="size-3 text-muted-foreground" />
+              <span className="font-medium">
+                {sortFields.find((f) => f.value === sort.field)?.label ?? sort.field}
+              </span>
+              <button
+                onClick={() => {
+                  const next = sortItems.map((s, i) =>
+                    i === idx
+                      ? { ...s, direction: (s.direction === 'asc' ? 'desc' : 'asc') as 'asc' | 'desc' }
+                      : s
+                  );
+                  onSortChange(next);
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {sort.direction === 'asc' ? '↑ A→Z' : '↓ Z→A'}
+              </button>
+              <button
+                onClick={() => onSortChange(sortItems.filter((_, i) => i !== idx))}
+                className="text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => onSortChange([...sortItems, { field: 'name', direction: 'asc' }])}
+            className="text-xs text-muted-foreground hover:text-foreground underline"
+          >
+            + Add sort
+          </button>
+        </div>
+      )}
+
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {Object.entries(filters).map(([field, values]) =>
@@ -165,21 +199,10 @@ function SortDropdown({
   sortItems: SortItem[];
   onSortChange: (items: SortItem[]) => void;
 }) {
-  const isDateField = (f: string) => f === 'date_registered';
+  const usedFields = new Set(sortItems.map((s) => s.field));
 
-  function updateSort(index: number, patch: Partial<SortItem>) {
-    const next = sortItems.map((s, i) =>
-      i === index ? { ...s, ...patch } : s
-    );
-    onSortChange(next);
-  }
-
-  function removeSort(index: number) {
-    onSortChange(sortItems.filter((_, i) => i !== index));
-  }
-
-  function addSort() {
-    onSortChange([...sortItems, { field: 'name', direction: 'asc' }]);
+  function addSort(field: string) {
+    onSortChange([...sortItems, { field, direction: 'asc' }]);
   }
 
   return (
@@ -187,74 +210,24 @@ function SortDropdown({
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="gap-1.5 text-xs" />}>
         <ArrowUpDown className="size-3.5" />
         Sort
-        {sortItems.length > 0 && (
-          <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
-            {sortItems.length}
-          </span>
-        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={4} className="w-72">
-        <DropdownMenuLabel className="text-xs">Sort by</DropdownMenuLabel>
+      <DropdownMenuContent align="start" sideOffset={4} className="w-52">
+        <DropdownMenuLabel className="text-xs">Add sort by</DropdownMenuLabel>
         <DropdownMenuSeparator />
-
-        {sortItems.length === 0 && (
-          <p className="px-2 py-1.5 text-xs text-muted-foreground">No sorts applied</p>
-        )}
-
-        {sortItems.map((sort, idx) => (
-          <div key={idx} className="flex items-center gap-0.5 px-1 py-0.5">
-            <GripVertical className="size-3.5 shrink-0 text-muted-foreground/50 ml-0.5" />
-
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="flex-1 text-xs min-w-0">
-                <span className="truncate">
-                  {sortFields.find((f) => f.value === sort.field)?.label ?? sort.field}
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {sortFields.map((f) => (
-                  <DropdownMenuRadioItem
-                    key={f.value}
-                    value={f.value}
-                    onSelect={() => updateSort(idx, { field: f.value })}
-                  >
-                    {f.label}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                updateSort(idx, {
-                  direction: sort.direction === 'asc' ? 'desc' : 'asc',
-                });
-              }}
-              className="w-auto px-1.5 text-[10px] font-mono shrink-0"
+        <DropdownMenuRadioGroup
+          value=""
+          onValueChange={(v) => { if (v) addSort(v); }}
+        >
+          {sortFields.map((f) => (
+            <DropdownMenuRadioItem
+              key={f.value}
+              value={f.value}
+              disabled={usedFields.has(f.value)}
             >
-              {isDateField(sort.field)
-                ? sort.direction === 'asc' ? 'Oldest' : 'Newest'
-                : sort.direction === 'asc' ? 'A → Z' : 'Z → A'}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
-                removeSort(idx);
-              }}
-              className="w-auto px-1 text-muted-foreground hover:text-destructive shrink-0"
-            >
-              <Trash2 className="size-3" />
-            </DropdownMenuItem>
-          </div>
-        ))}
-
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={(e) => { e.preventDefault(); addSort(); }}>
-          <Plus className="size-3.5" />
-          Add sort
-        </DropdownMenuItem>
+              {f.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -8,6 +8,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import PeopleTableToolbar, {
   type FilterState,
   type SortItem,
@@ -33,6 +34,16 @@ export default function PeopleTable() {
   const supabase = createClient();
 
   const allColumns = useMemo(() => [...defaultColumns, ...optionalColumns], []);
+
+  const columnSizeMap: Record<string, number> = {
+    name: 180,
+    phone: 160,
+    date_registered: 120,
+    m1_status: 120,
+    category: 120,
+    follow_up_status: 140,
+    location: 160,
+  };
 
   const loadPeople = useCallback(async () => {
     const { data } = await supabase
@@ -182,7 +193,8 @@ export default function PeopleTable() {
       />
 
       <div className="rounded-lg border overflow-hidden">
-        <div className="overflow-x-auto">
+        <ScrollArea className="w-full max-h-[calc(100vh-320px)] rounded-r-lg">
+          <div className="min-w-[1100px]">
           <table className="w-full caption-bottom text-sm">
             <thead className="border-b">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -190,19 +202,23 @@ export default function PeopleTable() {
                   <th className="h-10 px-3 text-left align-middle font-medium text-muted-foreground w-10">
                     <Checkbox />
                   </th>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap"
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </th>
-                  ))}
+                  {headerGroup.headers.map((header) => {
+                    const colId = (header.column.columnDef as any).accessorKey ?? (header.column.columnDef as any).id;
+                    return (
+                      <th
+                        key={header.id}
+                        className="h-10 px-3 text-left align-middle font-medium text-muted-foreground whitespace-nowrap"
+                        style={{ minWidth: columnSizeMap[colId] }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </th>
+                    );
+                  })}
                 </tr>
               ))}
             </thead>
@@ -242,20 +258,28 @@ export default function PeopleTable() {
                     <td className="px-3 py-2 w-10">
                       <Checkbox />
                     </td>
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-2">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const colId = (cell.column.columnDef as any).accessorKey ?? (cell.column.columnDef as any).id;
+                      return (
+                        <td
+                          key={cell.id}
+                          className="px-3 py-2"
+                          style={{ minWidth: columnSizeMap[colId] }}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </ScrollArea>
       </div>
 
       {drawerOpen && (
