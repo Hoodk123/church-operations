@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ArrowUpDown,
   ListFilter,
@@ -7,7 +7,6 @@ import {
   Columns3,
   Plus,
   X,
-  ChevronLeft,
   Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -42,14 +42,31 @@ const fieldLabels: Record<string, string> = {
   m1_status: 'M1 Status',
   location: 'Location',
   assigned_to_name: 'Assigned To',
+  phone: 'Phone',
+  hbf_group: 'HBF Group',
+  baptism_status: 'Baptism Status',
+  how_found_church: 'How Found Church',
+  notes: 'Notes',
+  registered_by_name: 'Registered By',
+  contact_preference: 'Preferred Contact',
+  date_registered: 'Registered',
 };
+
+const visibilityGroups: { label: string; columns: string[] }[] = [
+  { label: 'Contact', columns: ['phone', 'location', 'gender', 'age_group'] },
+  {
+    label: 'Church Journey',
+    columns: ['category', 'm1_status', 'hbf_group', 'baptism_status', 'how_found_church', 'follow_up_status'],
+  },
+  {
+    label: 'Record',
+    columns: ['assigned_to_name', 'registered_by_name', 'date_registered', 'contact_preference', 'notes'],
+  },
+];
 
 interface PeopleTableToolbarProps {
   searchValue: string;
   onSearchChange: (value: string) => void;
-  columnVisibility: Record<string, boolean>;
-  onColumnVisibilityChange: (column: string, visible: boolean) => void;
-  allColumnIds: string[];
   onAddClick: () => void;
   sortItems: SortItem[];
   onSortChange: (items: SortItem[]) => void;
@@ -63,9 +80,6 @@ interface PeopleTableToolbarProps {
 export default function PeopleTableToolbar({
   searchValue,
   onSearchChange,
-  columnVisibility,
-  onColumnVisibilityChange,
-  allColumnIds,
   onAddClick,
   sortItems,
   onSortChange,
@@ -79,6 +93,10 @@ export default function PeopleTableToolbar({
     () => Object.values(filters).reduce((n, arr) => n + arr.length, 0),
     [filters]
   );
+
+  const usedSortFields = useMemo(() => new Set(sortItems.map((s) => s.field)), [sortItems]);
+  const firstUnusedSortField =
+    sortFields.find((f) => !usedSortFields.has(f.value))?.value ?? '';
 
   function removeFilter(field: string, value: string) {
     const next = { ...filters };
@@ -110,12 +128,6 @@ export default function PeopleTableToolbar({
         <SearchInput value={searchValue} onChange={onSearchChange} />
 
         <div className="w-2" />
-
-        <ColumnVisibilityDropdown
-          visibleColumns={columnVisibility}
-          onToggle={onColumnVisibilityChange}
-          allColumnIds={allColumnIds}
-        />
 
         <div className="flex-1" />
 
@@ -155,8 +167,19 @@ export default function PeopleTableToolbar({
             </div>
           ))}
           <button
-            onClick={() => onSortChange([...sortItems, { field: 'name', direction: 'asc' }])}
-            className="text-xs text-muted-foreground hover:text-foreground underline"
+            onClick={() => {
+              if (!firstUnusedSortField) return;
+              onSortChange([
+                ...sortItems,
+                { field: firstUnusedSortField, direction: 'asc' },
+              ]);
+            }}
+            disabled={!firstUnusedSortField}
+            className={`text-xs underline transition-colors ${
+              firstUnusedSortField
+                ? 'text-muted-foreground hover:text-foreground'
+                : 'text-muted-foreground/40 cursor-not-allowed'
+            }`}
           >
             + Add sort
           </button>
@@ -204,22 +227,20 @@ function SortDropdown({ sortItems, onSortChange }: {
         Sort
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" sideOffset={4} className="w-52">
-        <div className="px-2 py-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Add sort by</p>
-        </div>
-        <DropdownMenuSeparator />
-        {sortFields.map((f) => (
-          <DropdownMenuItem
-            key={f.value}
-            disabled={usedFields.has(f.value)}
-            onSelect={(e) => {
-              e.preventDefault();
-              onSortChange([...sortItems, { field: f.value, direction: 'asc' }]);
-            }}
-          >
-            {f.label}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs">Add sort by</DropdownMenuLabel>
+          {sortFields.map((f) => (
+            <DropdownMenuItem
+              key={f.value}
+              disabled={usedFields.has(f.value)}
+              onClick={() => {
+                onSortChange([...sortItems, { field: f.value, direction: 'asc' }]);
+              }}
+            >
+              {f.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -233,134 +254,82 @@ function FilterDropdown({
   onFiltersChange: (f: FilterState) => void;
   dynamicValues: Record<string, string[]>;
 }) {
-  const [level, setLevel] = useState<'fields' | 'values'>('fields');
-  const [activeField, setActiveField] = useState('');
-  const [search, setSearch] = useState('');
-
-  function openField(key: string) {
-    setActiveField(key);
-    setLevel('values');
-    setSearch('');
-  }
-
-  function goBack() {
-    setLevel('fields');
-    setActiveField('');
-    setSearch('');
-  }
-
-  function toggleValue(val: string) {
-    const current = filters[activeField] ?? [];
+  function toggleValue(field: string, val: string) {
+    const current = filters[field] ?? [];
     const next = current.includes(val)
       ? current.filter((v) => v !== val)
       : [...current, val];
     const nextFilters = { ...filters };
     if (next.length === 0) {
-      delete nextFilters[activeField];
+      delete nextFilters[field];
     } else {
-      nextFilters[activeField] = next;
+      nextFilters[field] = next;
     }
     onFiltersChange(nextFilters);
   }
 
-  function handleClose() {
-    setTimeout(() => {
-      setLevel('fields');
-      setActiveField('');
-      setSearch('');
-    }, 100);
-  }
-
-  const fieldConfig = filterFieldConfigs.find((f) => f.key === activeField);
-  const valuesForField = fieldConfig
-    ? fieldConfig.values.length > 0
-      ? fieldConfig.values
-      : (dynamicValues[activeField] ?? [])
-    : [];
-  const selectedValues = filters[activeField] ?? [];
-  const filteredValues = search
-    ? valuesForField.filter((v) => v.toLowerCase().includes(search.toLowerCase()))
-    : valuesForField;
+  const activeCount = Object.values(filters).reduce((n, arr) => n + arr.length, 0);
 
   return (
-    <DropdownMenu onOpenChange={(open) => !open && handleClose()}>
+    <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="gap-1.5 text-xs" />}>
         <ListFilter className="size-3.5" />
         Filter
-        {Object.values(filters).some((arr) => arr.length > 0) && (
+        {activeCount > 0 && (
           <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
-            {Object.values(filters).reduce((n, arr) => n + arr.length, 0)}
+            {activeCount}
           </span>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" sideOffset={4} className="w-60">
-        {level === 'fields' ? (
-          <>
-            <div className="px-2 py-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Filter by</p>
-            </div>
-            <DropdownMenuSeparator />
-            {filterFieldConfigs.map((field) => {
-              const count = (filters[field.key] ?? []).length;
+      <DropdownMenuContent align="start" sideOffset={4} className="w-72">
+        <div className="px-2 py-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Filter by</p>
+        </div>
+        <DropdownMenuSeparator />
+        <div className="max-h-80 overflow-y-auto pr-1">
+          {filterFieldConfigs.map((field) => {
+            const values =
+              field.values.length > 0
+                ? field.values
+                : (dynamicValues[field.key] ?? []);
+            if (values.length === 0) {
               return (
-                <DropdownMenuItem
-                  key={field.key}
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    openField(field.key);
-                  }}
-                  className="justify-between"
-                >
-                  <span>{field.label}</span>
-                  {count > 0 ? (
-                    <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">
-                      {count}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">›</span>
-                  )}
-                </DropdownMenuItem>
+                <DropdownMenuGroup key={field.key}>
+                  <DropdownMenuLabel className="text-xs">{field.label}</DropdownMenuLabel>
+                  <DropdownMenuItem disabled className="text-muted-foreground">
+                    No values yet
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
               );
-            })}
-          </>
-        ) : (
+            }
+            const selected = filters[field.key] ?? [];
+            return (
+              <DropdownMenuGroup key={field.key}>
+                <DropdownMenuLabel className="text-xs pt-2">{field.label}</DropdownMenuLabel>
+                {values.map((val) => (
+                  <DropdownMenuCheckboxItem
+                    key={val}
+                    checked={selected.includes(val)}
+                    onCheckedChange={() => toggleValue(field.key, val)}
+                  >
+                    {val}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuGroup>
+            );
+          })}
+        </div>
+        {activeCount > 0 && (
           <>
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  goBack();
-                }}
-                className="w-auto p-1"
-              >
-                <ChevronLeft className="size-3.5" />
-              </DropdownMenuItem>
-              <span className="text-xs font-medium">{fieldConfig?.label}</span>
-            </div>
-            <div className="px-2 pb-1.5">
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search..."
-                className="h-7 text-xs"
-                autoFocus
-              />
-            </div>
             <DropdownMenuSeparator />
-            <div className="max-h-48 overflow-y-auto">
-              {filteredValues.length === 0 && (
-                <p className="px-2 py-1.5 text-xs text-muted-foreground">No values found</p>
-              )}
-              {filteredValues.map((val) => (
-                <DropdownMenuCheckboxItem
-                  key={val}
-                  checked={selectedValues.includes(val)}
-                  onCheckedChange={() => toggleValue(val)}
-                >
-                  {val}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </div>
+            <DropdownMenuItem
+              onClick={() => {
+                onFiltersChange({});
+              }}
+              className="text-destructive"
+            >
+              Clear all filters
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -422,8 +391,8 @@ function GroupDropdown({
               <p className="text-[10px] text-muted-foreground mb-1">Direction</p>
               <div className="flex gap-1">
                 <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
+                  closeOnClick={false}
+                  onClick={() => {
                     onGroupChange({ ...groupState, direction: 'asc' });
                   }}
                   className={`flex-1 justify-center text-[10px] ${groupState.direction === 'asc' ? 'bg-primary text-primary-foreground' : ''}`}
@@ -431,8 +400,8 @@ function GroupDropdown({
                   A → Z
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
+                  closeOnClick={false}
+                  onClick={() => {
                     onGroupChange({ ...groupState, direction: 'desc' });
                   }}
                   className={`flex-1 justify-center text-[10px] ${groupState.direction === 'desc' ? 'bg-primary text-primary-foreground' : ''}`}
@@ -443,8 +412,7 @@ function GroupDropdown({
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 onGroupChange(null);
               }}
               className="text-destructive"
@@ -479,7 +447,7 @@ function SearchInput({
   );
 }
 
-function ColumnVisibilityDropdown({
+export function ColumnVisibilityDropdown({
   visibleColumns,
   onToggle,
   allColumnIds,
@@ -494,18 +462,30 @@ function ColumnVisibilityDropdown({
         <Columns3 className="size-4" />
         <span className="sr-only">Columns</span>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {allColumnIds.map((colId) => (
-          <DropdownMenuCheckboxItem
-            key={colId}
-            checked={visibleColumns[colId] !== false}
-            onCheckedChange={(checked) => onToggle(colId, checked)}
-          >
-            {fieldLabels[colId] ?? colId}
-          </DropdownMenuCheckboxItem>
-        ))}
+      <DropdownMenuContent align="end" className="w-52">
+        {visibilityGroups.map((group, gi) => {
+          const groupCols = group.columns.filter((c) => allColumnIds.includes(c));
+          if (groupCols.length === 0) return null;
+          return (
+            <span key={group.label}>
+              {gi > 0 && <DropdownMenuSeparator />}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {group.label}
+                </DropdownMenuLabel>
+                {groupCols.map((colId) => (
+                  <DropdownMenuCheckboxItem
+                    key={colId}
+                    checked={visibleColumns[colId] !== false}
+                    onCheckedChange={(checked) => onToggle(colId, checked)}
+                  >
+                    {fieldLabels[colId] ?? colId}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuGroup>
+            </span>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

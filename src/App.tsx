@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import LoginForm from '@/components/LoginForm';
 import Dashboard from '@/components/Dashboard';
@@ -10,13 +11,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setAuthed(!!data.session);
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } | null }) => {
+      setAuthed(!!data?.session);
       setChecking(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (_event: AuthChangeEvent, session: Session | null) => {
         setAuthed(!!session);
       }
     );

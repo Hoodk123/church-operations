@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { categories, followUpStatuses, ageGroups, genders, m1Statuses, baptismStatuses } from './constants';
+import { categories, ageGroups, genders, m1Statuses, baptismStatuses } from './constants';
 
 interface AddPersonFormProps {
   open: boolean;
@@ -169,24 +169,24 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
             </p>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="First name *">
-              <Input
-                value={form.first_name}
-                onChange={(e) => set('first_name', e.target.value)}
-                placeholder="John"
-              />
-            </FormField>
-            <FormField label="Last name *">
-              <Input
-                value={form.last_name}
-                onChange={(e) => set('last_name', e.target.value)}
-                placeholder="Doe"
-              />
-            </FormField>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-muted-foreground">Who are we registering?</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="First name *">
+                <Input
+                  value={form.first_name}
+                  onChange={(e) => set('first_name', e.target.value)}
+                  placeholder="John"
+                />
+              </FormField>
+              <FormField label="Last name *">
+                <Input
+                  value={form.last_name}
+                  onChange={(e) => set('last_name', e.target.value)}
+                  placeholder="Doe"
+                />
+              </FormField>
+            </div>
             <FormField label="Gender">
               <Select value={form.gender} onValueChange={(v) => set('gender', v ?? '')}>
                 <SelectTrigger className="w-full">
@@ -199,6 +199,93 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
                 </SelectContent>
               </Select>
             </FormField>
+          </div>
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs font-medium text-muted-foreground">
+              How did you hear about us, or who invited you?
+            </Label>
+            <FormField label="How found church">
+              <Input
+                value={form.how_found_church}
+                onChange={(e) => set('how_found_church', e.target.value)}
+                placeholder="e.g. Friend, Social media, Walk-in"
+              />
+            </FormField>
+          </div>
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs font-medium text-muted-foreground">
+              Is this their first visit, have they given their life to Christ, are they
+              returning, or here for counseling?
+            </Label>
+            <FormField label="Category">
+              <Select value={form.category} onValueChange={(v) => set('category', v ?? 'Visitor')}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          </div>
+
+          {showBaptism && (
+            <div className="space-y-1.5 border-t pt-3">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Since they're on the new-convert journey, let's capture their next steps.
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Baptism Status">
+                  <Select value={form.baptism_status} onValueChange={(v) => set('baptism_status', v ?? '')}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {baptismStatuses.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <FormField label="M1 Status">
+                  <Select value={form.m1_status} onValueChange={(v) => set('m1_status', v ?? '')}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {m1Statuses.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs font-medium text-muted-foreground">
+              Location
+            </Label>
+            <FormField label="Where are they based?">
+              <Input
+                value={form.location}
+                onChange={(e) => set('location', e.target.value)}
+                placeholder="Kigali, Rwanda"
+              />
+            </FormField>
+            <p className="text-[11px] text-muted-foreground">
+              So we can connect you with a Home Bible Fellowship group near you once
+              you're ready.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs font-medium text-muted-foreground">Age group</Label>
             <FormField label="Age group">
               <Select value={form.age_group} onValueChange={(v) => set('age_group', v ?? '')}>
                 <SelectTrigger className="w-full">
@@ -213,101 +300,34 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
             </FormField>
           </div>
 
-          <FormField label="Phone *">
-            <Input
-              value={form.phone}
-              onChange={(e) => set('phone', e.target.value)}
-              placeholder="+250 7XX XXX XXX"
-            />
-            {phoneError && (
-              <p className="text-[11px] text-destructive mt-1">{phoneError}</p>
-            )}
-          </FormField>
-
-          <FormField label="Location">
-            <Input
-              value={form.location}
-              onChange={(e) => set('location', e.target.value)}
-              placeholder="Kigali, Rwanda"
-            />
-          </FormField>
-
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Category">
-              <Select value={form.category} onValueChange={(v) => set('category', v ?? 'Visitor')}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="space-y-1.5 border-t pt-3">
+            <Label className="text-xs font-medium text-muted-foreground">How to reach them</Label>
+            <FormField label="Phone *">
+              <Input
+                value={form.phone}
+                onChange={(e) => set('phone', e.target.value)}
+                placeholder="+250 7XX XXX XXX"
+              />
+              {phoneError && (
+                <p className="text-[11px] text-destructive mt-1">{phoneError}</p>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                So our team can follow up with you personally.
+              </p>
             </FormField>
-            <FormField label="Follow-up status">
-              <Select value={form.follow_up_status} onValueChange={(v) => set('follow_up_status', v ?? 'Not Started')}>
+            <FormField label="Preferred contact method">
+              <Select value={form.contact_preference} onValueChange={(v) => set('contact_preference', v ?? '')}>
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue placeholder="Select preferred contact method" />
                 </SelectTrigger>
                 <SelectContent>
-                  {followUpStatuses.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
+                  <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                  <SelectItem value="SMS">SMS</SelectItem>
+                  <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
                 </SelectContent>
               </Select>
             </FormField>
           </div>
-
-          <FormField label="How did they find the church?">
-            <Input
-              value={form.how_found_church}
-              onChange={(e) => set('how_found_church', e.target.value)}
-              placeholder="e.g. Friend, Social media, Walk-in"
-            />
-          </FormField>
-
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="M1 Status">
-              <Select value={form.m1_status} onValueChange={(v) => set('m1_status', v ?? '')}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {m1Statuses.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormField>
-            {showBaptism && (
-              <FormField label="Baptism Status">
-                <Select value={form.baptism_status} onValueChange={(v) => set('baptism_status', v ?? '')}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baptismStatuses.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-            )}
-          </div>
-
-          <FormField label="How to reach you?">
-            <Select value={form.contact_preference} onValueChange={(v) => set('contact_preference', v ?? '')}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select preferred contact method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                <SelectItem value="SMS">SMS</SelectItem>
-                <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
-              </SelectContent>
-            </Select>
-          </FormField>
 
           <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Saving...' : 'Register person'}

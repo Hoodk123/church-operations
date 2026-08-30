@@ -66,7 +66,7 @@ export default function RecentActivityDrawer({
       .select('id, first_name, last_name, category, created_at, updated_at, registered_by_name:team_members!people_registered_by_fkey(full_name)')
       .order('updated_at', { ascending: false })
       .limit(15)
-      .then(({ data }) => {
+      .then(({ data }: { data: any[] | null }) => {
         if (cancelled) return;
         if (data) {
           setRows(

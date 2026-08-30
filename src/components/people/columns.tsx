@@ -36,11 +36,45 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
+// Our Filter menu stores an array of selected values per field (multi-select
+// checkboxes). TanStack's default filter fns expect a single value, so give
+// every filterable column an explicit fn that matches against the array.
+const multiValueFilterFn = (
+  row: any,
+  columnId: string,
+  filterValue: string[]
+) => {
+  if (!filterValue || filterValue.length === 0) return true;
+  return filterValue.includes(row.getValue(columnId));
+};
+
+/**
+ * Default visible columns reflect the three questions that matter most in
+ * person-to-person ministry — "who needs baptism," "who doesn't have an HBF
+ * group yet," and "who wants/is attending M1 classes." These must be scannable
+ * across the whole table without opening a drawer. Everything else (Phone,
+ * Gender, Age Group, Assigned To, How Found Church, Registered By, Notes,
+ * Contact Preference, Date Registered) is hidden by default and opt-in via the
+ * header's column menu.
+ */
+export const DEFAULT_VISIBLE_COLUMNS = [
+  'name',
+  'category',
+  'baptism_status',
+  'm1_status',
+  'hbf_group',
+  'follow_up_status',
+  'location',
+] as const;
+
 export const defaultColumns: ColumnDef<Person, any>[] = [
   {
     id: 'name',
     header: 'Name',
-    accessorFn: (row) => `${row.first_name} ${row.last_name}`,
+    // Accessor used for sorting — surname-first so "Sort by Name" orders by
+    // last name (roster/attendance convention). Display is handled by the
+    // cell below and stays given-name-first.
+    accessorFn: (row) => `${row.last_name} ${row.first_name}`,
     cell: ({ row }) => (
       <span className="font-medium">
         {row.original.first_name} {row.original.last_name}
@@ -48,9 +82,13 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
     ),
     enableHiding: false,
   },
+];
+
+export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'category',
     header: 'Category',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string>();
       return (
@@ -63,6 +101,7 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'follow_up_status',
     header: 'Follow-up Status',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string>();
       return (
@@ -75,6 +114,7 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'assigned_to_name',
     header: 'Assigned To',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ? (
@@ -89,7 +129,7 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
     header: 'Phone',
     cell: ({ getValue }) => {
       const val = getValue<string>();
-      return <span className="whitespace-nowrap font-mono text-xs">{val}</span>;
+      return <span className="whitespace-nowrap">{val}</span>;
     },
   },
   {
@@ -99,12 +139,10 @@ export const defaultColumns: ColumnDef<Person, any>[] = [
       <span className="whitespace-nowrap">{formatDate(getValue<string>())}</span>
     ),
   },
-];
-
-export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'location',
     header: 'Location',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ?? <span className="text-muted-foreground">—</span>;
@@ -113,6 +151,7 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'gender',
     header: 'Gender',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ?? <span className="text-muted-foreground">—</span>;
@@ -121,6 +160,7 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'm1_status',
     header: 'M1 Status',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ?? <span className="text-muted-foreground">—</span>;
@@ -129,6 +169,7 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
   {
     accessorKey: 'age_group',
     header: 'Age Group',
+    filterFn: multiValueFilterFn,
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ?? <span className="text-muted-foreground">—</span>;
@@ -156,6 +197,34 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
     cell: ({ getValue }) => {
       const val = getValue<string | null>();
       return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
+    accessorKey: 'registered_by_name',
+    header: 'Registered By',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
+    accessorKey: 'contact_preference',
+    header: 'Preferred Contact',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
+    accessorKey: 'notes',
+    header: 'Notes',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ? (
+        <span className="line-clamp-2 text-xs text-muted-foreground">{val}</span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
     },
   },
 ];
