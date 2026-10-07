@@ -22,6 +22,15 @@ export const baptismStatuses = ['Not yet', 'Scheduled', 'Baptized'] as const;
 export const ageGroups = ['Child', 'Youth', 'Adult', 'Elderly'] as const;
 export const genders = ['Male', 'Female'] as const;
 
+export const CONTACT_METHODS = ['Call', 'WhatsApp', 'SMS', 'Visit', 'Other'] as const;
+export const CONTACT_OUTCOMES = [
+  'Reached',
+  'No answer',
+  'Scheduled visit',
+  'Needs pastor',
+  'Wrong number',
+] as const;
+
 export const filterFieldConfigs = [
   { key: 'category', label: 'Category', values: [...categories] },
   { key: 'follow_up_status', label: 'Follow-up Status', values: [...followUpStatuses] },

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { toast } from 'sonner';
 import {
   useReactTable,
   getCoreRowModel,
@@ -37,6 +38,7 @@ import PeopleTableToolbar, {
 } from './PeopleTableToolbar';
 import PersonDetailDrawer from './PersonDetailDrawer';
 import AddPersonForm from './AddPersonForm';
+import { supabaseErrorMessage } from '@/lib/rls-error';
 import { defaultColumns, optionalColumns, DEFAULT_VISIBLE_COLUMNS, type Person } from './columns';
 
 function toColumnFilters(filters: FilterState) {
@@ -106,10 +108,16 @@ export default function PeopleTable() {
   };
 
   const loadPeople = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('people')
       .select('*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)')
       .order('updated_at', { ascending: false });
+
+    if (error) {
+      toast.error(supabaseErrorMessage(error));
+      setLoading(false);
+      return;
+    }
 
     if (data) {
       setPeople(

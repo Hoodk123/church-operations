@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { Toaster } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import LoginForm from '@/components/LoginForm';
 import Dashboard from '@/components/Dashboard';
@@ -63,6 +64,7 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
+      <Toaster position="top-center" richColors closeButton />
     </BrowserRouter>
   );
 }
