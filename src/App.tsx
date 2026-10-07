@@ -11,14 +11,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } | null }) => {
+    supabase.auth.getSession().then(({ data }) => {
       setAuthed(!!data?.session);
       setChecking(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        setAuthed(!!session);
+      async (event: AuthChangeEvent, session: Session | null) => {
+        if (event === 'SIGNED_OUT') {
+          setAuthed(false);
+          return;
+        }
+
+        if (session) {
+          setAuthed(true);
+        } else {
+          const { data } = await supabase.auth.getSession();
+          if (data?.session) {
+            setAuthed(true);
+          }
+        }
       }
     );
 

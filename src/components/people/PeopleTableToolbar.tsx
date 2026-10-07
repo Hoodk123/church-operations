@@ -112,7 +112,12 @@ export default function PeopleTableToolbar({
   const dynamicValues = useMemo(() => {
     const locs = [...new Set(people.map((p) => p.location).filter(Boolean))] as string[];
     const assigned = [...new Set(people.map((p) => p.assigned_to_name).filter(Boolean))] as string[];
-    return { location: locs.sort(), assigned_to_name: assigned.sort() };
+    const hbf = [...new Set(people.map((p) => p.hbf_group).filter(Boolean))] as string[];
+    return {
+      location: locs.sort(),
+      assigned_to_name: assigned.sort(),
+      hbf_group: hbf.sort(),
+    };
   }, [people]);
 
   return (

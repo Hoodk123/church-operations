@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   MapPin,
@@ -9,6 +9,9 @@ import {
   MessageSquare,
   Calendar,
   Users,
+  Compass,
+  FileText,
+  Clock,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +49,7 @@ import {
   m1Statuses,
   genders,
   ageGroups,
+  followUpStatuses,
 } from './constants';
 import type { Person } from './columns';
 
@@ -66,6 +70,11 @@ interface PersonDetailDrawerProps {
   onDeleted: (id: string) => void;
 }
 
+interface TeamMemberOption {
+  id: string;
+  full_name: string;
+}
+
 export default function PersonDetailDrawer({
   person,
   open,
@@ -75,30 +84,50 @@ export default function PersonDetailDrawer({
 }: PersonDetailDrawerProps) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [teamMembers, setTeamMembers] = useState<TeamMemberOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const supabase = createClient();
 
+  useEffect(() => {
+    async function loadTeam() {
+      const { data } = await supabase
+        .from('team_members')
+        .select('id, full_name')
+        .order('full_name', { ascending: true });
+      if (data) {
+        setTeamMembers(data);
+      }
+    }
+    if (open) {
+      loadTeam();
+    }
+  }, [open, supabase]);
+
   if (!person) return null;
 
   const p: Person = person;
   const personId = p.id;
-  const showBaptism =
-    person.category === 'New Convert' || person.category === 'M1 Class';
 
   function startEdit() {
     setEditForm({
       first_name: p.first_name,
       last_name: p.last_name,
       gender: p.gender ?? '',
+      age_group: p.age_group ?? '',
       phone: p.phone ?? '',
       location: p.location ?? '',
+      hbf_group: p.hbf_group ?? '',
       category: p.category,
       m1_status: p.m1_status ?? '',
-      hbf_group: p.hbf_group ?? '',
       baptism_status: p.baptism_status ?? '',
+      how_found_church: p.how_found_church ?? '',
+      assigned_to: p.assigned_to ?? '',
+      follow_up_status: p.follow_up_status ?? 'Not Started',
+      contact_preference: p.contact_preference ?? '',
+      notes: p.notes ?? '',
     });
     setEditing(true);
     setError('');
@@ -111,6 +140,11 @@ export default function PersonDetailDrawer({
   }
 
   async function saveEdit() {
+    if (!editForm.first_name?.trim() || !editForm.last_name?.trim()) {
+      setError('First name and last name are required.');
+      return;
+    }
+
     setSaving(true);
     setError('');
 
@@ -120,12 +154,18 @@ export default function PersonDetailDrawer({
         first_name: editForm.first_name.trim(),
         last_name: editForm.last_name.trim(),
         gender: editForm.gender || null,
+        age_group: editForm.age_group || null,
         phone: editForm.phone.trim(),
         location: editForm.location.trim() || null,
+        hbf_group: editForm.hbf_group.trim() || null,
         category: editForm.category,
         m1_status: editForm.m1_status || null,
-        hbf_group: editForm.hbf_group.trim() || null,
         baptism_status: editForm.baptism_status || null,
+        how_found_church: editForm.how_found_church.trim() || null,
+        assigned_to: editForm.assigned_to || null,
+        follow_up_status: editForm.follow_up_status,
+        contact_preference: editForm.contact_preference || null,
+        notes: editForm.notes.trim() || null,
       })
       .eq('id', personId)
       .select(
@@ -173,52 +213,64 @@ export default function PersonDetailDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-full sm:w-[420px] p-0 overflow-y-auto">
-          <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle>
-              {p.first_name} {p.last_name}
-            </SheetTitle>
+        <SheetContent side="right" className="w-full sm:w-[480px] p-0 overflow-y-auto">
+          <SheetHeader className="border-b px-4 py-3 sticky top-0 bg-background z-10">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-base font-semibold">
+                {editing ? 'Edit Person Details' : `${p.first_name} ${p.last_name}`}
+              </SheetTitle>
+              {!editing && (
+                <div className="flex items-center gap-1.5 pr-6">
+                  <Button size="sm" variant="outline" onClick={startEdit} className="h-7 text-xs cursor-pointer">
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setDeleteOpen(true)}
+                    className="h-7 text-xs cursor-pointer"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              )}
+            </div>
           </SheetHeader>
 
           <div className="p-4 space-y-4">
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
+              <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2 font-medium">
                 {error}
               </p>
             )}
 
-            {/* Card 1 — Person Profile */}
-            <div className="border rounded-lg p-4 space-y-3">
-              {editing ? (
-                <>
+            {editing ? (
+              /* ==================== EDIT FORM ==================== */
+              <div className="space-y-4">
+                {/* Profile Card Edit */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Profile Information
+                  </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField label="First name">
+                    <FormField label="First name *">
                       <Input
                         value={editForm.first_name}
                         onChange={(e) => setFormField('first_name', e.target.value)}
                         className="h-8 text-sm"
+                        required
                       />
                     </FormField>
-                    <FormField label="Last name">
+                    <FormField label="Last name *">
                       <Input
                         value={editForm.last_name}
                         onChange={(e) => setFormField('last_name', e.target.value)}
                         className="h-8 text-sm"
+                        required
                       />
                     </FormField>
                   </div>
-                  <FormField label="Category">
-                    <Select value={editForm.category} onValueChange={(v) => setFormField('category', v ?? 'Visitor')}>
-                      <SelectTrigger className="h-8 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((c) => (
-                          <SelectItem key={c} value={c}>{c}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormField>
+
                   <div className="grid grid-cols-2 gap-3">
                     <FormField label="Gender">
                       <Select value={editForm.gender} onValueChange={(v) => setFormField('gender', v ?? '')}>
@@ -233,7 +285,7 @@ export default function PersonDetailDrawer({
                       </Select>
                     </FormField>
                     <FormField label="Age Group">
-                      <Select value={editForm.age_group ?? ''} onValueChange={(v) => setFormField('age_group', v ?? '')}>
+                      <Select value={editForm.age_group} onValueChange={(v) => setFormField('age_group', v ?? '')}>
                         <SelectTrigger className="h-8 w-full">
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
@@ -245,40 +297,79 @@ export default function PersonDetailDrawer({
                       </Select>
                     </FormField>
                   </div>
-                  <FormField label="Phone">
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Phone Number *">
+                      <Input
+                        value={editForm.phone}
+                        onChange={(e) => setFormField('phone', e.target.value)}
+                        className="h-8 text-sm"
+                        required
+                      />
+                    </FormField>
+                    <FormField label="Preferred Contact">
+                      <Select value={editForm.contact_preference} onValueChange={(v) => setFormField('contact_preference', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                          <SelectItem value="SMS">SMS</SelectItem>
+                          <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Location">
+                      <Input
+                        value={editForm.location}
+                        onChange={(e) => setFormField('location', e.target.value)}
+                        className="h-8 text-sm"
+                        placeholder="e.g. Kigali"
+                      />
+                    </FormField>
+                    <FormField label="HBF Group">
+                      <Input
+                        value={editForm.hbf_group}
+                        onChange={(e) => setFormField('hbf_group', e.target.value)}
+                        className="h-8 text-sm"
+                        placeholder="e.g. Remera HBF"
+                      />
+                    </FormField>
+                  </div>
+
+                  <FormField label="How Found Church / Invited by">
                     <Input
-                      value={editForm.phone}
-                      onChange={(e) => setFormField('phone', e.target.value)}
+                      value={editForm.how_found_church}
+                      onChange={(e) => setFormField('how_found_church', e.target.value)}
                       className="h-8 text-sm"
+                      placeholder="e.g. Friend, Outreach"
                     />
                   </FormField>
-                  <FormField label="Location">
-                    <Input
-                      value={editForm.location}
-                      onChange={(e) => setFormField('location', e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </FormField>
-                  <FormField label="M1 Status">
-                    <Select value={editForm.m1_status} onValueChange={(v) => setFormField('m1_status', v ?? '')}>
+                </div>
+
+                {/* Journey & Follow-up Edit */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Category, Journey & Follow-up
+                  </h3>
+
+                  <FormField label="Category">
+                    <Select value={editForm.category} onValueChange={(v) => setFormField('category', v ?? 'Visitor')}>
                       <SelectTrigger className="h-8 w-full">
-                        <SelectValue placeholder="Select" />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {m1Statuses.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </FormField>
-                  <FormField label="HBF Group">
-                    <Input
-                      value={editForm.hbf_group}
-                      onChange={(e) => setFormField('hbf_group', e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  </FormField>
-                  {showBaptism && (
+
+                  <div className="grid grid-cols-2 gap-3">
                     <FormField label="Baptism Status">
                       <Select value={editForm.baptism_status} onValueChange={(v) => setFormField('baptism_status', v ?? '')}>
                         <SelectTrigger className="h-8 w-full">
@@ -291,117 +382,168 @@ export default function PersonDetailDrawer({
                         </SelectContent>
                       </Select>
                     </FormField>
-                  )}
-                  <div className="flex gap-2 pt-1">
-                    <Button size="sm" onClick={saveEdit} disabled={saving} className="flex-1">
-                      {saving ? 'Saving...' : 'Save'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={cancelEdit} className="flex-1">
-                      Cancel
-                    </Button>
+                    <FormField label="M1 Status">
+                      <Select value={editForm.m1_status} onValueChange={(v) => setFormField('m1_status', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {m1Statuses.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
                   </div>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-base font-semibold">
-                    {p.first_name} {p.last_name}
-                  </h3>
-                  <Badge variant="outline" className={categoryColors[p.category] ?? ''}>
-                    {p.category}
-                  </Badge>
 
-                  <div className="space-y-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField label="Assigned Follow-up Person">
+                      <Select value={editForm.assigned_to} onValueChange={(v) => setFormField('assigned_to', v ?? '')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue placeholder="Unassigned" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Unassigned</SelectItem>
+                          {teamMembers.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+
+                    <FormField label="Follow-up Status">
+                      <Select value={editForm.follow_up_status} onValueChange={(v) => setFormField('follow_up_status', v ?? 'Not Started')}>
+                        <SelectTrigger className="h-8 w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {followUpStatuses.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                  </div>
+
+                  <FormField label="Notes / Comments">
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) => setFormField('notes', e.target.value)}
+                      placeholder="Notes, prayer requests, or follow-up logs..."
+                      rows={3}
+                      className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                    />
+                  </FormField>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" onClick={saveEdit} disabled={saving} className="flex-1 cursor-pointer">
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={cancelEdit} className="flex-1 cursor-pointer">
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* ==================== VIEW MODE ==================== */
+              <>
+                {/* Card 1 — Person Profile */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-semibold">
+                      {p.first_name} {p.last_name}
+                    </h3>
+                    <Badge variant="outline" className={categoryColors[p.category] ?? ''}>
+                      {p.category}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-0.5 border-t pt-2">
+                    <DetailRow icon={Phone} label="Phone" value={p.phone ?? '—'} />
+                    <DetailRow icon={MessageSquare} label="Preferred contact" value={p.contact_preference ?? '—'} />
                     <DetailRow icon={User} label="Gender" value={p.gender ?? '—'} />
                     <DetailRow icon={Users} label="Age Group" value={p.age_group ?? '—'} />
-                    <DetailRow icon={Phone} label="Phone" value={p.phone ?? '—'} />
                     <DetailRow icon={MapPin} label="Location" value={p.location ?? '—'} />
-                    <DetailRow icon={CircleCheck} label="M1 Status" value={p.m1_status ?? '—'} />
                     <DetailRow
                       icon={BookOpen}
                       label="HBF Group"
                       value={p.hbf_group ?? 'Not yet assigned'}
                     />
-                    {showBaptism && (
-                      <DetailRow
-                        icon={Droplets}
-                        label="Baptism Status"
-                        value={p.baptism_status ?? 'Not set'}
-                      />
-                    )}
+                    <DetailRow
+                      icon={Compass}
+                      label="How found church"
+                      value={p.how_found_church ?? '—'}
+                    />
+                    <DetailRow
+                      icon={Droplets}
+                      label="Baptism Status"
+                      value={p.baptism_status ?? 'Not set'}
+                    />
+                    <DetailRow
+                      icon={CircleCheck}
+                      label="M1 Status"
+                      value={p.m1_status ?? 'Not set'}
+                    />
                   </div>
+                </div>
 
-                  <div className="flex gap-2 pt-2 border-t">
-                    <Button size="sm" variant="outline" onClick={startEdit} className="flex-1">
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setDeleteOpen(true)}
-                      className="flex-1"
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Card 2 — Record Info */}
-            <div className="border rounded-lg p-4 space-y-0">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Record Info
-              </h3>
-              <DetailRow
-                icon={User}
-                label="Registered by"
-                value={p.registered_by_name ?? '—'}
-              />
-              <DetailRow
-                icon={Calendar}
-                label="Date registered"
-                value={formatDate(p.date_registered) ?? '—'}
-              />
-              <DetailRow
-                icon={User}
-                label="Assigned to"
-                value={p.assigned_to_name ?? 'Unassigned'}
-              />
-              <DetailRow
-                icon={CircleCheck}
-                label="Follow-up status"
-                value={
-                  <Badge variant="outline" className={followUpStatusColors[p.follow_up_status] ?? ''}>
-                    {p.follow_up_status}
-                  </Badge>
-                }
-              />
-              <DetailRow
-                icon={MessageSquare}
-                label="Last contact"
-                value={
-                  p.last_contact_date ? (
-                    formatDate(p.last_contact_date)
-                  ) : (
-                    <span className="text-amber-600 dark:text-amber-400">Never contacted</span>
-                  )
-                }
-              />
-              {p.contact_preference && (
-                <DetailRow
-                  icon={MessageSquare}
-                  label="Preferred contact"
-                  value={p.contact_preference}
-                />
-              )}
-              {p.notes && (
-                <DetailRow
-                  icon={MessageSquare}
-                  label="Notes"
-                  value={<p className="whitespace-pre-wrap text-sm">{p.notes}</p>}
-                />
-              )}
-            </div>
+                {/* Card 2 — Record & Ministry Info */}
+                <div className="border rounded-lg p-4 space-y-0.5 bg-card">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Record & Ministry Follow-up
+                  </h3>
+                  <DetailRow
+                    icon={User}
+                    label="Assigned to"
+                    value={p.assigned_to_name ?? <span className="text-muted-foreground italic">Unassigned</span>}
+                  />
+                  <DetailRow
+                    icon={CircleCheck}
+                    label="Follow-up status"
+                    value={
+                      <Badge variant="outline" className={followUpStatusColors[p.follow_up_status] ?? ''}>
+                        {p.follow_up_status}
+                      </Badge>
+                    }
+                  />
+                  <DetailRow
+                    icon={User}
+                    label="Registered by"
+                    value={p.registered_by_name ?? '—'}
+                  />
+                  <DetailRow
+                    icon={Calendar}
+                    label="Date registered"
+                    value={formatDate(p.date_registered) ?? '—'}
+                  />
+                  <DetailRow
+                    icon={Clock}
+                    label="Last contact"
+                    value={
+                      p.last_contact_date ? (
+                        formatDate(p.last_contact_date)
+                      ) : (
+                        <span className="text-amber-600 dark:text-amber-400">Never contacted</span>
+                      )
+                    }
+                  />
+                  <DetailRow
+                    icon={FileText}
+                    label="Notes / Comments"
+                    value={
+                      p.notes ? (
+                        <p className="whitespace-pre-wrap text-xs text-foreground bg-muted/40 p-2 rounded-md border mt-0.5">
+                          {p.notes}
+                        </p>
+                      ) : (
+                        <span className="text-muted-foreground text-xs italic">No notes entered</span>
+                      )
+                    }
+                  />
+                </div>
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -443,11 +585,11 @@ function DetailRow({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-3 py-2">
+    <div className="flex items-start gap-3 py-1.5">
       <Icon className="size-4 mt-0.5 shrink-0 text-muted-foreground" />
-      <div className="min-w-0">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <div className="text-sm">{value}</div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+        <div className="text-xs font-medium text-foreground">{value}</div>
       </div>
     </div>
   );
@@ -462,7 +604,7 @@ function FormField({
 }) {
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs text-muted-foreground font-medium">{label}</Label>
       {children}
     </div>
   );

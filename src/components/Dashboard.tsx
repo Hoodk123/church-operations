@@ -14,7 +14,14 @@ interface TeamMember {
 }
 
 export default function Dashboard() {
-  const [member, setMember] = useState<TeamMember | null>(null);
+  const [member, setMember] = useState<TeamMember | null>(() => {
+    try {
+      const cached = localStorage.getItem('cached_team_member_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [lastUpdatedText, setLastUpdatedText] = useState('No data yet');
   const [activityOpen, setActivityOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -23,26 +30,45 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate('/login'); return; }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const user = sessionData?.session?.user;
+      if (!user) {
+        navigate('/login');
+        return;
+      }
 
-      const { data } = await supabase
-        .from('team_members')
-        .select('full_name, role')
-        .eq('auth_user_id', user.id)
-        .single();
+      try {
+        const { data } = await supabase
+          .from('team_members')
+          .select('full_name, role')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
 
-      setMember(data);
+        if (data) {
+          setMember(data);
+          try {
+            localStorage.setItem('cached_team_member_profile', JSON.stringify(data));
+          } catch {
+            // Ignore localStorage errors
+          }
+        }
+      } catch {
+        // Network error / offline - fallback to cached profile in state
+      }
 
-      const { data: latest } = await supabase
-        .from('people')
-        .select('updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const { data: latest } = await supabase
+          .from('people')
+          .select('updated_at')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (latest) {
-        setLastUpdatedText(`Updated ${timeAgo(latest.updated_at)}`);
+        if (latest) {
+          setLastUpdatedText(`Updated ${timeAgo(latest.updated_at)}`);
+        }
+      } catch {
+        // Network error / offline - leave default text
       }
     }
     load();

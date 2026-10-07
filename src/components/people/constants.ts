@@ -28,7 +28,9 @@ export const filterFieldConfigs = [
   { key: 'gender', label: 'Gender', values: [...genders] },
   { key: 'age_group', label: 'Age Group', values: [...ageGroups] },
   { key: 'm1_status', label: 'M1 Status', values: [...m1Statuses] },
+  { key: 'baptism_status', label: 'Baptism Status', values: [...baptismStatuses] },
   { key: 'location', label: 'Location', values: [] },
+  { key: 'hbf_group', label: 'HBF Group', values: [] },
   { key: 'assigned_to_name', label: 'Assigned To', values: [] },
 ] as const;
 
@@ -39,8 +41,11 @@ export const sortFields = [
   { value: 'date_registered', label: 'Date Registered' },
   { value: 'assigned_to_name', label: 'Assigned To' },
   { value: 'location', label: 'Location' },
+  { value: 'hbf_group', label: 'HBF Group' },
   { value: 'gender', label: 'Gender' },
   { value: 'age_group', label: 'Age Group' },
+  { value: 'baptism_status', label: 'Baptism Status' },
+  { value: 'm1_status', label: 'M1 Status' },
 ];
 
 export const groupFields = [
@@ -48,6 +53,8 @@ export const groupFields = [
   { value: 'follow_up_status', label: 'Follow-up Status' },
   { value: 'age_group', label: 'Age Group' },
   { value: 'm1_status', label: 'M1 Status' },
+  { value: 'baptism_status', label: 'Baptism Status' },
   { value: 'location', label: 'Location' },
+  { value: 'hbf_group', label: 'HBF Group' },
   { value: 'assigned_to_name', label: 'Assigned To' },
 ];
