@@ -1,0 +1,325 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Sunday Screen Designs</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three build-first screens, each a phone (or desktop) mockup beside the shadcn parts it uses. Tokens mirror the app's neutral base-nova look. */
+:root{
+  --bg:#fafafa; --fg:#171717; --muted:#737373; --card:#ffffff; --border:#e5e5e5; --accent:#f4f4f5;
+  --primary:#171717; --primary-fg:#fafafa; --frame:#e9e9eb; --ring:#a1a1aa;
+  --blue-bg:#dbeafe; --blue-fg:#1e40af; --teal-bg:#ccfbf1; --teal-fg:#115e59;
+  --amber-bg:#fef3c7; --amber-fg:#92400e; --purple-bg:#ede9fe; --purple-fg:#5b21b6;
+  --pink-bg:#fce7f3; --pink-fg:#9d174d; --red-bg:#fee2e2; --red-fg:#991b1b;
+  --green-bg:#dcfce7; --green-fg:#166534; --gray-bg:#f4f4f5; --gray-fg:#3f3f46;
+  --dot-green:#22c55e; --dot-amber:#f59e0b; --dot-red:#ef4444;
+  --sans:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:40px 72px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:72px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.sec{display:flex;flex-direction:column;gap:24px}
+.sec-head{max-width:64ch}
+.stage{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.note{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.note h3{font-size:14px;margin:0;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--card)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.legend{font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:999px;border:1px solid var(--ring);margin-right:6px;vertical-align:-1px}
+.legend .l1::before{background:var(--fg);border-color:var(--fg)}
+.legend .l2::before{border-style:dashed}
+ul.tips{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+/* mockups */
+.phone{width:340px;max-width:100%;flex:0 0 auto;background:var(--frame);border:1px solid var(--border);border-radius:34px;padding:10px}
+.screen{background:var(--bg);border-radius:26px;border:1px solid var(--border);height:640px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.appbar b{font-size:17px;letter-spacing:-.01em}
+.sub{font-size:12px;color:var(--muted)}
+.body{flex:1;min-height:0;padding:4px 16px 12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.igroup{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted);font-size:15px}
+.igroup .t{color:var(--fg)}
+.caret{display:inline-block;width:1px;height:18px;background:var(--fg);margin-left:1px;vertical-align:-4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+.item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.item .main{flex:1;min-width:0}
+.item .nm{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden}
+.av{width:34px;height:34px;border-radius:999px;background:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:600;flex:0 0 auto}
+.av.sm{width:22px;height:22px;font-size:10px}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;line-height:1;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.b-blue{background:var(--blue-bg);color:var(--blue-fg)}.b-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.b-amber{background:var(--amber-bg);color:var(--amber-fg)}.b-purple{background:var(--purple-bg);color:var(--purple-fg)}
+.b-pink{background:var(--pink-bg);color:var(--pink-fg)}.b-red{background:var(--red-bg);color:var(--red-fg)}
+.b-green{background:var(--green-bg);color:var(--green-fg)}.b-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:10px;font:500 14px var(--sans);border:1px solid transparent;background:var(--primary);color:var(--primary-fg);white-space:nowrap}
+.btn.out{background:var(--card);color:var(--fg);border-color:var(--border)}
+.btn.lg{height:48px;font-size:15px;width:100%}
+.btn.sm{height:30px;padding:0 10px;font-size:13px;border-radius:8px}
+.btn.grow{flex:1}
+.toast{position:absolute;left:16px;right:16px;bottom:78px;background:var(--primary);color:var(--primary-fg);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:center}
+.nav{display:flex;border-top:1px solid var(--border);background:var(--card);padding:6px 6px 10px}
+.nav div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:6px 0;border-radius:8px}
+.nav .on{color:var(--fg);background:var(--accent);font-weight:500}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.drawer{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--border);margin:0 auto 4px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:500}
+.field .in{height:40px;border:1px solid var(--border);border-radius:10px;background:var(--card);display:flex;align-items:center;padding:0 12px;font-size:14px;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+.tg div{flex:1;text-align:center;font-size:13px;padding:9px 0;border-left:1px solid var(--border)}
+.tg div:first-child{border-left:0}
+.tg .on{background:var(--accent);font-weight:600}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);font-size:14px}
+.switch{width:38px;height:22px;border-radius:99px;background:var(--primary);position:relative;flex:0 0 auto}
+.switch::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:99px;background:var(--primary-fg)}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block;flex:0 0 auto}
+.dg{background:var(--dot-green)}.da{background:var(--dot-amber)}.dr{background:var(--dot-red)}
+.fu{display:flex;flex-direction:column;gap:10px}
+.fu .top{display:flex;gap:10px;align-items:flex-start}
+.fu .acts{display:flex;gap:8px}
+.warn{color:var(--amber-fg);font-weight:500}
+/* board */
+.desk{flex:1 1 100%;min-width:0;background:var(--frame);border:1px solid var(--border);border-radius:16px;padding:10px}
+.deskin{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.bar .logo{width:22px;height:22px;border-radius:6px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;font-size:10px;font-weight:700}
+.filters{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:13px}
+.scroll{overflow-x:auto;padding:0 14px 16px}
+.cols{display:grid;grid-template-columns:repeat(5,236px);gap:12px;min-width:max-content}
+.col{background:var(--accent);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:330px}
+.colh{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 4px}
+.colh .cnt{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.kc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;position:relative}
+.kc .r{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kc .nm{font-weight:500;font-size:14px}
+.kc.lift{outline:2px solid var(--ring);outline-offset:1px}
+.menu{position:absolute;right:8px;top:34px;z-index:2;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;width:150px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu div{padding:6px 8px;border-radius:6px}.menu .h{color:var(--muted);font-size:11px;padding-bottom:2px}
+.menu .on{background:var(--accent)}
+.drop{border:1.5px dashed var(--ring);border-radius:12px;height:54px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+/* parts table */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+code{font-family:var(--mono);font-size:13px}
+pre{margin:0;overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font:13px/1.6 var(--mono)}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="i-cols" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+</svg>
+
+<div class="wrap">
+
+<header>
+  <div class="kicker">Church Operations · first three builds</div>
+  <h1>Sunday Screen Designs</h1>
+  <p class="lead">What the three red cards on your Miro board should look like, drawn with shadcn parts. The logic (check-in, contact log, status moves) is yours; every form, card, drawer and badge comes from shadcn so the agent has less to invent. These are mockups with example names, not final pixels.</p>
+</header>
+
+<!-- SCREEN 1 -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Build 1 · During service · phone</div>
+    <h2>Quick Check-in</h2>
+    <p class="lead">A volunteer at the door finds someone or registers them in one thumb's reach. The search box is always focused; "New visitor" opens a bottom drawer, not a new page.</p>
+  </div>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="appbar"><div><b>Check-in</b><div class="sub">Sunday Service · 11 Oct</div></div><span class="badge b-gray">24 today</span></div>
+      <div class="body">
+        <div class="igroup"><svg class="i"><use href="#i-search"/></svg><span class="t">ali<span class="caret"></span></span></div>
+        <div class="sub" style="padding-top:2px">2 matches</div>
+        <div class="item"><div class="av">AU</div><div class="main"><div class="nm">Aline Uwase</div><div class="meta"><span class="badge b-blue">Visitor</span><svg class="i" style="width:12px;height:12px"><use href="#i-pin"/></svg>Kinyinya</div></div><span class="btn sm">Check in</span></div>
+        <div class="item"><div class="av">AM</div><div class="main"><div class="nm">Alice Mukamana</div><div class="meta"><span class="badge b-gray">Member</span><svg class="i" style="width:12px;height:12px"><use href="#i-pin"/></svg>Kagugu</div></div><span class="btn sm out"><svg class="i" style="width:14px;height:14px"><use href="#i-check"/></svg>Here</span></div>
+        <div class="card" style="margin-top:4px;text-align:center;color:var(--muted);font-size:13px">Not on the list? Register them below.</div>
+      </div>
+      <div class="toast"><svg class="i"><use href="#i-check"/></svg>Alice Mukamana checked in</div>
+      <div style="padding:0 16px 12px"><span class="btn lg"><svg class="i"><use href="#i-plus"/></svg>New visitor</span></div>
+      <div class="nav"><div class="on"><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></div>
+    </div></div>
+
+    <div class="phone"><div class="screen">
+      <div class="appbar"><div><b>Check-in</b><div class="sub">Sunday Service · 11 Oct</div></div></div>
+      <div class="dim"></div>
+      <div class="drawer">
+        <div class="grab"></div>
+        <div><b style="font-size:16px">New visitor</b><div class="sub">Name and phone are required.</div></div>
+        <div class="two"><div class="field"><label><input type="text" />First name</label><div class="in">Eric</div></div><div class="field"><label><input type="text" />Last name</label><div class="in">Mugisha</div></div></div>
+        <div class="field"><label><input type="tel" />Phone</label><div class="in"><span class="sub">+250</span>788 123 456</div></div>
+        <div class="two"><div class="field"><label><input type="text" />Gender</label><div class="tg"><div class="on">Male</div><div>Female</div></div></div><div class="field"><label><input type="text" />Age group</label><div class="tg"><div>Youth</div><div class="on">Adult</div></div></div></div>
+        <div class="field"><label><input type="text"/>Location</label><div class="in"><svg class="i" style="color:var(--muted)"><use href="#i-pin"/></svg>Kagugu</div></div>
+        <div class="sw"><span>Gave their life to Christ today</span><span class="switch"></span></div>
+        <div class="acts" style="display:flex;gap:8px"><span class="btn out grow lg" style="width:auto">Cancel</span><span class="btn grow lg" style="width:auto">Save and check in</span></div>
+      </div>
+    </div></div>
+
+    <div class="note">
+      <h3>shadcn parts</h3>
+      <div class="chips"><span class="chip">Input</span><span class="chip">Button</span><span class="chip">Badge</span><span class="chip">Avatar</span><span class="chip">Field</span><span class="chip">Label</span><span class="chip add">Input Group</span><span class="chip add">Item</span><span class="chip add">Drawer</span><span class="chip add">Toggle Group</span><span class="chip add">Switch</span><span class="chip add">Toast</span></div>
+      <div class="legend"><span class="l1">already installed</span><span class="l2">add with the CLI</span></div>
+      <ul class="tips">
+        <li>Search box uses Input Group, so the icon sits inside the field.</li>
+        <li>Each result is an Item: avatar, name, badge, one action button.</li>
+        <li>Gender and age group are Toggle Groups, not dropdowns, so each is one tap.</li>
+        <li>Inputs stay at 16px text on the real screen so iPhones do not zoom.</li>
+        <li>Duplicate phone? Show "Already registered as Name" with a Check in button.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SCREEN 2 -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Build 2 · After service · phone</div>
+    <h2>My Follow-ups</h2>
+    <p class="lead">Each volunteer sees only the people assigned to them, most urgent first. Call and WhatsApp are real links; logging the contact takes one drawer.</p>
+  </div>
+  <div class="stage">
+    <div class="phone"><div class="screen">
+      <div class="appbar"><div><b>My Follow-ups</b><div class="sub">5 people waiting</div></div><div class="av sm">SK</div></div>
+      <div class="body">
+        <div class="card fu"><div class="top"><div class="av">GI</div><div style="flex:1;min-width:0"><div style="font-weight:500">Grace Ineza</div><div class="meta" style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:2px"><span class="badge b-teal">New Convert</span><span class="badge b-purple">Ask pastor</span></div></div><span class="dot dr" style="margin-top:6px"></span></div><div class="warn" style="font-size:13px">Never contacted</div><div class="acts"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-phone"/></svg>Call</span><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-msg"/></svg>WhatsApp</span><span class="btn sm grow">Log</span></div></div>
+        <div class="card fu"><div class="top"><div class="av">DK</div><div style="flex:1;min-width:0"><div style="font-weight:500">Divine Keza</div><div style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:2px"><span class="badge b-blue">Visitor</span>Gisozi</div></div><span class="dot dr" style="margin-top:6px"></span></div><div class="sub">Last contacted 12 days ago</div><div class="acts"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-phone"/></svg>Call</span><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-msg"/></svg>WhatsApp</span><span class="btn sm grow">Log</span></div></div>
+        <div class="card fu"><div class="top"><div class="av">JN</div><div style="flex:1;min-width:0"><div style="font-weight:500">Jean Claude Niyo</div><div style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:2px"><span class="badge b-amber">M1 Class</span>Kagugu</div></div><span class="dot da" style="margin-top:6px"></span></div><div class="sub">Last contacted 6 days ago</div></div>
+      </div>
+      <div class="nav"><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div class="on"><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></div>
+    </div></div>
+
+    <div class="phone"><div class="screen">
+      <div class="appbar"><div><b>My Follow-ups</b><div class="sub">5 people waiting</div></div></div>
+      <div class="dim"></div>
+      <div class="drawer">
+        <div class="grab"></div>
+        <div><b style="font-size:16px">Log contact</b><div class="sub">Grace Ineza</div></div>
+        <div class="field"><label>How did you reach out?</label><div class="tg" style="flex-wrap:wrap"><div class="on">Call</div><div>WhatsApp</div><div>SMS</div><div>Visit</div></div></div>
+        <div class="field"><label>What happened?</label><div class="in" style="justify-content:space-between">Reached<svg class="i" style="color:var(--muted)"><use href="#i-down"/></svg></div></div>
+        <div class="field"><label>Note (optional)</label><div class="in" style="height:76px;align-items:flex-start;padding-top:10px;color:var(--muted)">Wants to join M1 class next month.</div></div>
+        <div class="acts" style="display:flex;gap:8px"><span class="btn out grow lg" style="width:auto">Cancel</span><span class="btn grow lg" style="width:auto">Save</span></div>
+        <div class="sub" style="text-align:center">Saving moves a Not Started person to Contacted.</div>
+      </div>
+    </div></div>
+
+    <div class="note">
+      <h3>shadcn parts</h3>
+      <div class="chips"><span class="chip">Card</span><span class="chip">Badge</span><span class="chip">Button</span><span class="chip">Avatar</span><span class="chip">Select</span><span class="chip add">Drawer</span><span class="chip add">Toggle Group</span><span class="chip add">Textarea</span><span class="chip add">Empty</span><span class="chip add">Skeleton</span><span class="chip add">Toast</span></div>
+      <div class="legend"><span class="l1">already installed</span><span class="l2">add with the CLI</span></div>
+      <ul class="tips">
+        <li>The red, amber and green dot is days since last contact: under 4, 4 to 10, over 10 or never.</li>
+        <li>Order: asked for pastor first, never contacted next, then oldest contact.</li>
+        <li>Empty state uses the Empty component: "Nobody is waiting on you. Thank you for serving."</li>
+        <li>Skeleton cards while loading, so the list never jumps.</li>
+        <li>Call and WhatsApp are plain links. The page cannot know the call happened, so Log is always a separate tap.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- SCREEN 3 -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Build 3 · After service · desktop, tablet</div>
+    <h2>Follow-up Board</h2>
+    <p class="lead">The five statuses you already have, as columns. On a laptop you drag a card; on a phone you use the "Move to" menu, which must work without dragging.</p>
+  </div>
+  <div class="stage">
+    <div class="desk"><div class="deskin">
+      <div class="bar"><span class="logo">CO</span><b>Church Operations</b><span class="sub" style="margin-left:6px">Home / Board</span></div>
+      <div class="filters"><span class="sel">Assigned to: Everyone<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></span><span class="sel">Category: All<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></span></div>
+      <div class="scroll"><div class="cols">
+        <div class="col"><div class="colh"><span class="badge b-red">Not Started</span><span class="cnt">7</span></div>
+          <div class="kc"><div class="r"><span class="nm">Grace Ineza</span><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div><div class="r"><span class="badge b-teal">New Convert</span><span class="sub"><span class="dot dr"></span> never</span></div><div class="r"><span class="sub">Kagugu</span><span class="av sm">SK</span></div>
+            <div class="menu"><div class="h">Move to</div><div>Contacted</div><div>Met</div><div class="on">Ongoing</div><div>Completed</div></div></div>
+          <div class="kc"><div class="r"><span class="nm">Eric Mugisha</span><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div><div class="r"><span class="badge b-blue">Visitor</span><span class="sub"><span class="dot dg"></span> 1 day</span></div><div class="r"><span class="sub">Kagugu</span><span class="sub">Unassigned</span></div></div>
+        </div>
+        <div class="col"><div class="colh"><span class="badge b-amber">Contacted</span><span class="cnt">5</span></div>
+          <div class="kc"><div class="r"><span class="nm">Divine Keza</span><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div><div class="r"><span class="badge b-blue">Visitor</span><span class="sub"><span class="dot dr"></span> 12 days</span></div><div class="r"><span class="sub">Gisozi</span><span class="av sm">RM</span></div></div>
+        </div>
+        <div class="col"><div class="colh"><span class="badge b-blue">Met</span><span class="cnt">3</span></div>
+          <div class="kc"><div class="r"><span class="nm">Jean Claude Niyo</span><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div><div class="r"><span class="badge b-amber">M1 Class</span><span class="sub"><span class="dot da"></span> 6 days</span></div><div class="r"><span class="sub">Kagugu</span><span class="av sm">SK</span></div></div>
+        </div>
+        <div class="col"><div class="colh"><span class="badge b-purple">Ongoing</span><span class="cnt">4</span></div>
+          <div class="kc lift"><div class="r"><span class="nm">Alice Mukamana</span><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div><div class="r"><span class="badge b-gray">Member</span><span class="sub"><span class="dot dg"></span> 2 days</span></div><div class="r"><span class="sub">Kagugu</span><span class="av sm">RM</span></div></div>
+          <div class="drop">Drop here</div>
+        </div>
+        <div class="col"><div class="colh"><span class="badge b-green">Completed</span><span class="cnt">12</span></div>
+          <div class="sub" style="padding:2px">Last 30 days only</div>
+        </div>
+      </div></div>
+    </div></div>
+
+    <div class="note" style="flex-basis:100%">
+      <h3>shadcn parts, and one gap</h3>
+      <div class="chips"><span class="chip">Card</span><span class="chip">Badge</span><span class="chip">Avatar</span><span class="chip">Select</span><span class="chip">Dropdown Menu</span><span class="chip">Scroll Area</span><span class="chip">Sheet</span><span class="chip add">Tabs</span><span class="chip add">Skeleton</span></div>
+      <ul class="tips">
+        <li>shadcn has no Kanban component. The columns and cards are shadcn pieces; dragging comes from a small library (<code>@dnd-kit</code>), which is the one new dependency.</li>
+        <li>Clicking a card opens the Person drawer you already built. Moves are saved right away and rolled back with a message if the database refuses.</li>
+        <li>Below tablet width, show one column at a time with Tabs across the top, instead of five columns side by side.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- PARTS -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">What to add</div>
+    <h2>shadcn parts for these screens</h2>
+    <p class="lead">Your project uses the <code>base-nova</code> style, so the CLI installs the Base UI versions. Components that exist in your repo already are not listed.</p>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Part</th><th>Used for</th></tr></thead>
+    <tbody>
+      <tr><td><code>drawer</code></td><td>Bottom sheet for New visitor and Log contact on phones. Keep <code>sheet</code> for desktop.</td></tr>
+      <tr><td><code>input-group</code></td><td>Search box with icon, phone box with +250 prefix.</td></tr>
+      <tr><td><code>item</code></td><td>Result rows and person rows with avatar, text and an action.</td></tr>
+      <tr><td><code>toggle-group</code></td><td>Gender, age group, contact method: one tap each.</td></tr>
+      <tr><td><code>switch</code></td><td>"Gave their life to Christ today".</td></tr>
+      <tr><td><code>textarea</code></td><td>Contact note.</td></tr>
+      <tr><td><code>tabs</code></td><td>Board columns on phones.</td></tr>
+      <tr><td><code>empty</code>, <code>skeleton</code>, <code>spinner</code></td><td>Empty lists, loading cards, buttons that are saving.</td></tr>
+      <tr><td>toast component</td><td>"Alice Mukamana checked in", "Could not save: not allowed". The docs now list <code>Toast</code>; older projects use <code>sonner</code>. Let the CLI decide which one exists.</td></tr>
+    </tbody>
+  </table></div>
+  <pre>npx shadcn@latest add drawer input-group item toggle-group switch textarea tabs empty skeleton spinner</pre>
+</section>
+
+</div>
+
+</body></html>
