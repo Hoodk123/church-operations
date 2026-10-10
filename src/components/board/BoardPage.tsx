@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
+  TouchSensor,
   closestCorners,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
@@ -26,7 +29,7 @@ import { toast } from 'sonner';
 import { categories, followUpStatuses } from '../people/constants';
 import type { Person } from '../people/columns';
 import { BoardColumn } from './BoardColumn';
-import { PlainCard, type BoardStatus } from './BoardCard';
+import { BoardCardBody, PlainCard, type BoardStatus } from './BoardCard';
 import PersonDetailDrawer from '../people/PersonDetailDrawer';
 
 interface TeamOption {
@@ -79,6 +82,7 @@ export default function BoardPage() {
   const [detailPerson, setDetailPerson] = useState<Person | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [activePerson, setActivePerson] = useState<Person | null>(null);
 
   useEffect(() => {
     let active = false;
@@ -155,7 +159,8 @@ export default function BoardPage() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
   function columnOf(id: string): BoardStatus | null {
@@ -166,13 +171,23 @@ export default function BoardPage() {
     return null;
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const id = String(event.active.id);
+    setActivePerson((people ?? []).find((p) => p.id === id) ?? null);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActivePerson(null);
     if (!event.over) return;
     const id = String(event.active.id);
     const from = columnOf(id);
     const to = columnOf(String(event.over.id));
     const person = (people ?? []).find((p) => p.id === id);
     if (from && to && from !== to && person) void movePerson(person, to);
+  }
+
+  function handleDragCancel() {
+    setActivePerson(null);
   }
 
   function openDetail(person: Person) {
@@ -201,6 +216,7 @@ export default function BoardPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">Assigned to</span>
         <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v ?? 'Everyone')}>
           <SelectTrigger className="h-10 w-auto min-w-36">
             <SelectValue placeholder="Assigned to" />
@@ -217,6 +233,7 @@ export default function BoardPage() {
           </SelectContent>
         </Select>
 
+        <span className="ml-2 text-sm font-medium text-muted-foreground">Category</span>
         <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? 'All')}>
           <SelectTrigger className="h-10 w-auto min-w-36">
             <SelectValue placeholder="Category" />
@@ -289,9 +306,11 @@ export default function BoardPage() {
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
         >
-          <div className="flex h-[calc(100dvh-15rem)] gap-3 overflow-x-auto pb-1 sm:h-[calc(100dvh-13.5rem)]">
+          <div className="flex shrink-0 gap-3 overflow-x-auto pb-1">
             {followUpStatuses.map((s) => (
               <BoardColumn
                 key={s}
@@ -302,6 +321,15 @@ export default function BoardPage() {
               />
             ))}
           </div>
+          <DragOverlay
+            dropAnimation={{ duration: 250, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}
+          >
+            {activePerson ? (
+              <div className="w-[270px] rotate-2 cursor-grabbing rounded-xl border bg-card p-3 shadow-2xl ring-2 ring-ring/30">
+                <BoardCardBody person={activePerson} onMoveTo={() => {}} />
+              </div>
+            ) : null}
+          </DragOverlay>
         </DndContext>
       )}
 

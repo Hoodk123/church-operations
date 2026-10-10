@@ -36,7 +36,7 @@ export function BoardColumn({ status, cards, onOpen, onMoveTo }: BoardColumnProp
         <p className="px-3 pb-1 text-xs text-muted-foreground">Last 30 days only</p>
       )}
       <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-2 pt-1">
+        <div className="flex flex-1 flex-col gap-2 p-2 pt-1">
           {cards.map((c) => (
             <DragCard
               key={c.id}
@@ -48,7 +48,7 @@ export function BoardColumn({ status, cards, onOpen, onMoveTo }: BoardColumnProp
           {cards.length === 0 && (
             <div
               className={cn(
-                'rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground',
+                'flex flex-1 flex-col items-center justify-center rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground',
                 isOver && 'border-ring text-foreground'
               )}
             >

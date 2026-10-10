@@ -152,7 +152,7 @@ export function DragCard({ person, onOpen, onMoveTo }: CardActions) {
       className={cn(
         'relative cursor-grab rounded-xl border bg-card p-3 shadow-sm touch-none transition-shadow select-none focus:outline-hidden',
         'hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50',
-        isDragging && 'opacity-40 shadow-lg'
+        isDragging && 'border-2 border-dashed border-muted-foreground/40 bg-transparent opacity-60 shadow-none'
       )}
     >
       <BoardCardBody person={person} onMoveTo={onMoveTo} />
