@@ -13,6 +13,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 import {
   Select,
   SelectContent,
@@ -283,9 +284,9 @@ export default function BoardPage() {
                   <p className="mb-2 px-1 text-xs text-muted-foreground">Last 30 days only</p>
                 )}
                 {groups[s].length === 0 ? (
-                  <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    Nothing here yet
-                  </div>
+                  <Empty className="py-8">
+                    <EmptyTitle>Nothing here yet</EmptyTitle>
+                  </Empty>
                 ) : (
                   <div className="flex flex-col gap-2 pb-2">
                     {groups[s].map((p) => (

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { Check, MapPin, Plus, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { todayISO } from '@/lib/dates';
+import { initials } from '@/lib/names';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
@@ -10,8 +11,10 @@ import NewVisitorDrawer from './NewVisitorDrawer';
 import { TodaySoFarCard, type TodayCheckIn, type TodayPerson } from './TodaySoFarCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 import {
   InputGroup,
   InputGroupAddon,
@@ -55,10 +58,6 @@ interface ExpectedPerson {
   last_name: string;
   category: string | null;
   location: string | null;
-}
-
-function getInitials(first: string, last: string): string {
-  return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
 }
 
 function personOf(row: AttendanceRaw): TodayPerson | null {
@@ -241,7 +240,11 @@ export default function CheckInPage() {
         onClick={() => void checkIn(person)}
       >
         {person.first_name} {person.last_name}
-        <Plus className="size-3.5" />
+        {checkingId === person.id ? (
+          <Spinner className="size-3.5" />
+        ) : (
+          <Plus className="size-3.5" />
+        )}
       </Button>
     );
   }
@@ -295,9 +298,9 @@ export default function CheckInPage() {
           )}
 
           {isSearching && !searching && results.length === 0 && (
-            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-              No matches for “{query.trim()}”.
-            </div>
+            <Empty className="py-6">
+              <EmptyTitle>No matches for “{query.trim()}”.</EmptyTitle>
+            </Empty>
           )}
 
           {results.length > 0 && !searching && (
@@ -310,7 +313,7 @@ export default function CheckInPage() {
                     <ItemMedia>
                       <Avatar>
                         <AvatarFallback>
-                          {getInitials(person.first_name, person.last_name)}
+                          {initials(person.first_name, person.last_name)}
                         </AvatarFallback>
                       </Avatar>
                     </ItemMedia>
@@ -352,6 +355,7 @@ export default function CheckInPage() {
                           disabled={checkingId === person.id}
                           onClick={() => void checkIn(person)}
                         >
+                          {checkingId === person.id && <Spinner className="size-4" />}
                           Check in
                         </Button>
                       )}
@@ -428,7 +432,7 @@ export default function CheckInPage() {
                 <ItemMedia>
                   <Avatar>
                     <AvatarFallback>
-                      {getInitials(p.first_name, p.last_name)}
+                      {initials(p.first_name, p.last_name)}
                     </AvatarFallback>
                   </Avatar>
                 </ItemMedia>
@@ -444,6 +448,7 @@ export default function CheckInPage() {
                     disabled={checkingId === p.id}
                     onClick={() => void checkIn(p)}
                   >
+                    {checkingId === p.id && <Spinner className="size-4" />}
                     Check in
                   </Button>
                 </ItemActions>

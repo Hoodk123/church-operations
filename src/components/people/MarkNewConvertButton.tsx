@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +71,7 @@ export function MarkNewConvertButton({
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirm} disabled={saving}>
+              {saving && <Spinner className="size-4" />}
               {saving ? 'Marking…' : 'Mark'}
             </AlertDialogAction>
           </AlertDialogFooter>

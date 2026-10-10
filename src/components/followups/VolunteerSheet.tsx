@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince, relativeDays } from '@/lib/dates';
+import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -79,10 +80,6 @@ function shortDate(iso: string): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(
     new Date(iso)
   );
-}
-
-function initialsOf(p: Person): string {
-  return `${p.first_name[0] ?? ''}${p.last_name[0] ?? ''}`.toUpperCase();
 }
 
 interface VolunteerSheetProps {
@@ -236,7 +233,7 @@ export default function VolunteerSheet({
                       />
                       <Avatar className="size-8">
                         <AvatarFallback className="text-xs">
-                          {initialsOf(p)}
+                          {initials(p.first_name, p.last_name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">

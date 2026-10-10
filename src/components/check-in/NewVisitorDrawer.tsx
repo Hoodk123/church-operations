@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Spinner } from '@/components/ui/spinner';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   InputGroup,
@@ -400,6 +401,7 @@ export default function NewVisitorDrawer({
           Cancel
         </Button>
         <Button type="submit" className="flex-1 text-base" disabled={submitting}>
+          {submitting && <Spinner className="size-4" />}
           {submitting ? 'Saving...' : 'Save and check in'}
         </Button>
       </div>

@@ -20,6 +20,7 @@ import LogContactSheet from '@/components/followups/LogContactSheet';
 import { MarkNewConvertButton } from './MarkNewConvertButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -517,6 +518,7 @@ export default function PersonDetailDrawer({
 
                 <div className="flex gap-2 pt-1">
                   <Button size="sm" onClick={saveEdit} disabled={saving} className="flex-1 cursor-pointer">
+                    {saving && <Spinner className="size-4" />}
                     {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
                   <Button size="sm" variant="outline" onClick={cancelEdit} className="flex-1 cursor-pointer">
@@ -717,6 +719,7 @@ export default function PersonDetailDrawer({
               disabled={deleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
+              {deleting && <Spinner className="size-4" />}
               {deleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>

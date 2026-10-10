@@ -25,10 +25,6 @@ export function fullName(person: FollowUpPerson): string {
   return `${person.first_name} ${person.last_name}`;
 }
 
-export function initialsOf(first: string, last: string): string {
-  return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
-}
-
 export function telHref(phone: string | null): string | null {
   if (!phone) return null;
   const cleaned = phone.replace(/[^\d+]/g, '');

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { initials } from '@/lib/names';
 import { timeAgo } from '@/lib/time-ago';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -37,10 +38,6 @@ function formatDateTime(dateStr: string): string {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(dateStr));
-}
-
-function getInitials(first: string, last: string): string {
-  return (first[0] + last[0]).toUpperCase();
 }
 
 interface RecentActivityDrawerProps {
@@ -138,7 +135,7 @@ export default function RecentActivityDrawer({
                     <div className="flex items-center gap-1.5 pl-4">
                       <Avatar size="sm">
                         <AvatarFallback className="text-[9px]">
-                          {getInitials(
+                          {initials(
                             row.registered_by_name.split(' ')[0] ?? '',
                             row.registered_by_name.split(' ')[1] ?? ''
                           )}

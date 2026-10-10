@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, PanelLeft, Share2, MoreVertical, LogOut, Settings, HelpCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { initials } from '@/lib/names';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -26,12 +27,7 @@ interface NavbarProps {
 }
 
 function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+  return initials(...name.split(' ').filter(Boolean).slice(0, 2));
 }
 
 export default function Navbar({

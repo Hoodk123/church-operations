@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import { MessageCircle, Phone } from 'lucide-react';
 import { daysSince } from '@/lib/dates';
+import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,6 @@ import {
 } from '@/components/people/constants';
 import {
   fullName,
-  initialsOf,
   isNewAssignment,
   lastContactLabel,
   newAssignmentLabel,
@@ -59,7 +59,7 @@ export function FollowUpCard({ person, onLog, onFocus }: CardProps) {
     >
       <div className="flex items-start gap-2.5">
         <Avatar>
-          <AvatarFallback>{initialsOf(person.first_name, person.last_name)}</AvatarFallback>
+          <AvatarFallback>{initials(person.first_name, person.last_name)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{fullName(person)}</p>
@@ -152,7 +152,7 @@ export function FollowUpRow({ person, onLog, onFocus }: CardProps) {
     >
       <Avatar className="size-8">
         <AvatarFallback className="text-xs">
-          {initialsOf(person.first_name, person.last_name)}
+          {initials(person.first_name, person.last_name)}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

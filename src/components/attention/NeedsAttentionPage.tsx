@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Empty, EmptyTitle } from '@/components/ui/empty';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
@@ -339,9 +340,9 @@ export default function NeedsAttentionPage() {
                 <span className="tabular-nums">({group.items.length})</span>
               </h2>
               {group.items.length === 0 ? (
-                <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  {group.empty}
-                </p>
+                <Empty className="py-6">
+                  <EmptyTitle>{group.empty}</EmptyTitle>
+                </Empty>
               ) : (
                 <div className="flex flex-col gap-2">
                   {group.items.map((p) => renderRow(p, group.reason(p)))}

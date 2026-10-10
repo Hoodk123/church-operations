@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { todayISO } from '@/lib/dates';
+import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
@@ -78,10 +79,6 @@ function rowPerson(log: DoneLog): DonePerson | null {
 
 function isNeedsNow(p: FollowUpPerson): boolean {
   return p.needs_pastor || !p.last_contact_date;
-}
-
-function initials(p: DonePerson): string {
-  return `${p.first_name[0] ?? ''}${p.last_name[0] ?? ''}`.toUpperCase();
 }
 
 export default function MyFollowupsPage() {
@@ -310,7 +307,7 @@ export default function MyFollowupsPage() {
                         >
                           <Avatar className="size-8">
                             <AvatarFallback className="text-xs">
-                              {initials(entry.person)}
+                              {initials(entry.person.first_name, entry.person.last_name)}
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">

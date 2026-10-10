@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginForm() {
   const [email, setEmail] = useState('');
@@ -102,7 +103,7 @@ export default function LoginForm() {
               className="w-full h-10.5 text-sm font-medium transition-all shadow-xs hover:shadow-md cursor-pointer"
               disabled={loading}
             >
-              {loading && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {loading && <Spinner className="size-4 mr-2" />}
               Sign in to Dashboard
             </Button>
           </form>

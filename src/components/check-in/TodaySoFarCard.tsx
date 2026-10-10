@@ -1,4 +1,5 @@
 import { Undo2 } from 'lucide-react';
+import { initials } from '@/lib/names';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -27,10 +28,6 @@ interface TodaySoFarCardProps {
   rows: TodayCheckIn[] | null;
   canUndo: boolean;
   onUndo: (attendanceId: string) => void;
-}
-
-function initials(person: TodayPerson): string {
-  return `${person.first_name[0] ?? ''}${person.last_name[0] ?? ''}`.toUpperCase();
 }
 
 function timeLabel(iso: string): string {
@@ -93,7 +90,7 @@ export function TodaySoFarCard({ rows, canUndo, onUndo }: TodaySoFarCardProps) {
                   <li key={row.id} className="flex items-center gap-2">
                     <Avatar className="size-7">
                       <AvatarFallback className="text-[11px]">
-                        {row.person ? initials(row.person) : '?'}
+                        {row.person ? initials(row.person.first_name, row.person.last_name) : '?'}
                       </AvatarFallback>
                     </Avatar>
                     <span className="min-w-0 flex-1 truncate text-sm">

@@ -12,6 +12,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { daysSince } from '@/lib/dates';
+import { initials } from '@/lib/names';
 import {
   categoryColors,
   contactDotColor,
@@ -77,13 +78,7 @@ export function BoardCardBody({ person, onMoveTo }: BoardCardBodyProps) {
     days === null ? 'never' : days === 0 ? 'today' : days === 1 ? '1 day' : `${days} days`;
   const assignedName = person.assigned_to_name;
   const assignedInitials = assignedName
-    ? assignedName
-        .split(' ')
-        .filter(Boolean)
-        .map((part) => part[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase()
+    ? initials(...assignedName.split(' ').filter(Boolean).slice(0, 2))
     : '';
 
   return (
