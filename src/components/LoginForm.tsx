@@ -27,7 +27,7 @@ export default function LoginForm() {
       setError(error.message);
       return;
     }
-    navigate('/dashboard');
+    navigate('/');
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, MapPin, Plus, Search } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -7,6 +7,7 @@ import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import NewVisitorDrawer from './NewVisitorDrawer';
+import { TodaySoFarCard, type TodayCheckIn, type TodayPerson } from './TodaySoFarCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -24,8 +25,14 @@ import {
   ItemMedia,
   ItemTitle,
 } from '@/components/ui/item';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { categoryColors } from '@/components/people/constants';
-import { MarkNewConvertButton } from '@/components/people/MarkNewConvertButton';
 
 interface SearchPerson {
   id: string;
@@ -36,61 +43,109 @@ interface SearchPerson {
   location: string | null;
 }
 
+interface AttendanceRaw {
+  id: string;
+  checked_in_at: string;
+  person: TodayPerson | TodayPerson[] | null;
+}
+
+interface ExpectedPerson {
+  id: string;
+  first_name: string;
+  last_name: string;
+  category: string | null;
+  location: string | null;
+}
+
 function getInitials(first: string, last: string): string {
   return `${first[0] ?? ''}${last[0] ?? ''}`.toUpperCase();
+}
+
+function personOf(row: AttendanceRaw): TodayPerson | null {
+  return Array.isArray(row.person) ? (row.person[0] ?? null) : row.person;
 }
 
 export default function CheckInPage() {
   const member = useShellMember();
   const supabase = createClient();
+  const today = useMemo(() => todayISO(), []);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchPerson[]>([]);
   const [searching, setSearching] = useState(false);
-  const [checkedIn, setCheckedIn] = useState<Set<string>>(new Set());
-  const [todayCount, setTodayCount] = useState(0);
+  const [attendance, setAttendance] = useState<AttendanceRaw[] | null>(null);
+  const [expected, setExpected] = useState<ExpectedPerson[]>([]);
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showAllOpen, setShowAllOpen] = useState(false);
+
+  const canUndo = member?.role === 'Admin' || member?.role === 'Info Desk';
 
   const serviceLabel = `Sunday Service · ${new Date().toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
   })}`;
 
+  const checkedInMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of attendance ?? []) {
+      const person = personOf(row);
+      if (person) map.set(person.id, row.checked_in_at);
+    }
+    return map;
+  }, [attendance]);
+
+  const todayRows: TodayCheckIn[] | null = useMemo(() => {
+    if (attendance === null) return null;
+    return attendance.map((row) => ({
+      id: row.id,
+      checkedInAt: row.checked_in_at,
+      person: personOf(row),
+    }));
+  }, [attendance]);
+
   const loadAttendance = useCallback(async () => {
-    const today = todayISO();
-    const [rows, countRes] = await Promise.all([
-      supabase.from('attendance').select('person_id').eq('service_date', today),
-      supabase
-        .from('attendance')
-        .select('*', { count: 'exact', head: true })
-        .eq('service_date', today),
-    ]);
-    return {
-      ids: (rows.data ?? []).map((r) => r.person_id as string),
-      count: countRes.count ?? 0,
-    };
+    const { data, error } = await supabase
+      .from('attendance')
+      .select(
+        'id, checked_in_at, person:people!attendance_person_id_fkey(id, first_name, last_name, category)'
+      )
+      .eq('service_date', today)
+      .order('checked_in_at', { ascending: false });
+    if (error) return null;
+    return (data ?? []) as AttendanceRaw[];
+  }, [supabase, today]);
+
+  const loadExpected = useCallback(async () => {
+    const { data, error } = await supabase.rpc('expected_today');
+    if (error) return [];
+    return (data ?? []) as ExpectedPerson[];
   }, [supabase]);
 
-  const refreshAttendance = useCallback(async () => {
-    const { ids, count } = await loadAttendance();
-    setCheckedIn(new Set(ids));
-    setTodayCount(count);
-  }, [loadAttendance]);
+  const refresh = useCallback(async () => {
+    const [rows, exp] = await Promise.all([loadAttendance(), loadExpected()]);
+    if (rows) setAttendance(rows);
+    setExpected(exp);
+  }, [loadAttendance, loadExpected]);
 
   useEffect(() => {
-    let active = false;
+    let mounted = true;
     async function load() {
-      const { ids, count } = await loadAttendance();
-      if (active) return;
-      setCheckedIn(new Set(ids));
-      setTodayCount(count);
+      const [rows, exp] = await Promise.all([loadAttendance(), loadExpected()]);
+      if (!mounted) return;
+      if (rows === null) {
+        toast.error('Could not load today’s check-ins.');
+        setAttendance([]);
+      } else {
+        setAttendance(rows);
+      }
+      setExpected(exp);
     }
     load();
     return () => {
-      active = true;
+      mounted = false;
     };
-  }, [loadAttendance]);
+  }, [loadAttendance, loadExpected]);
 
   function handleQueryChange(value: string) {
     setQuery(value);
@@ -134,166 +189,219 @@ export default function CheckInPage() {
     };
   }, [query, supabase]);
 
-  async function handleCheckIn(person: SearchPerson) {
-    if (!member) return;
-    const name = `${person.first_name} ${person.last_name}`;
-    setCheckingId(person.id);
+  const checkIn = useCallback(
+    async (person: { id: string; first_name: string; last_name: string }) => {
+      if (!member) return;
+      const name = `${person.first_name} ${person.last_name}`;
+      setCheckingId(person.id);
 
-    const { error } = await supabase
-      .from('attendance')
-      .insert({ person_id: person.id, checked_in_by: member.id });
+      const { error } = await supabase
+        .from('attendance')
+        .insert({ person_id: person.id, checked_in_by: member.id });
 
-    setCheckingId(null);
+      setCheckingId(null);
 
-    if (error) {
-      if (error.code === '23505') {
-        toast.info(`${name} is already checked in today`);
+      if (error) {
+        if (error.code === '23505') {
+          toast.info(`${name} is already checked in today`);
+        } else {
+          toast.error(rlsErrorMessage(error));
+        }
       } else {
-        toast.error(rlsErrorMessage(error));
+        toast.success(`${name} checked in`);
       }
-    } else {
-      toast.success(`${name} checked in`);
-    }
-    refreshAttendance();
-  }
+      await refresh();
+    },
+    [member, supabase, refresh]
+  );
+
+  const undo = useCallback(
+    async (attendanceId: string) => {
+      const { error } = await supabase.from('attendance').delete().eq('id', attendanceId);
+      if (error) {
+        toast.error(rlsErrorMessage(error));
+        return;
+      }
+      toast.success('Check-in undone');
+      await refresh();
+    },
+    [supabase, refresh]
+  );
 
   const isSearching = query.trim().length >= 2;
+  const expectedLeft = expected.filter((p) => !checkedInMap.has(p.id));
+
+  function ExpectedChip({ person }: { person: ExpectedPerson }) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 cursor-pointer rounded-full"
+        disabled={checkingId === person.id}
+        onClick={() => void checkIn(person)}
+      >
+        {person.first_name} {person.last_name}
+        <Plus className="size-3.5" />
+      </Button>
+    );
+  }
 
   return (
-    <div className="flex min-h-[calc(100dvh-11rem)] flex-col gap-3">
+    <div className="flex flex-col gap-4 pb-16 md:pb-0">
       <ScreenHeader
         title="Check-in"
         sub={serviceLabel}
         action={
-          <Badge variant="secondary" className="shrink-0">
-            {todayCount} today
-          </Badge>
+          <Button
+            className="hidden md:inline-flex"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Plus className="size-4" />
+            New visitor
+          </Button>
         }
       />
 
-      {/* Search */}
-      <InputGroup className="h-11">
-        <InputGroupAddon align="inline-start">
-          <Search className="size-4 text-muted-foreground" />
-        </InputGroupAddon>
-        <InputGroupInput
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          placeholder="Search name or phone"
-          className="text-base"
-          autoFocus
-          autoComplete="off"
-        />
-      </InputGroup>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_270px] md:items-start">
+        {/* Left column */}
+        <div className="flex min-w-0 flex-col gap-3">
+          <InputGroup className="h-11">
+            <InputGroupAddon align="inline-start">
+              <Search className="size-4 text-muted-foreground" />
+            </InputGroupAddon>
+            <InputGroupInput
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="Search name or phone"
+              className="text-base"
+              autoFocus
+              autoComplete="off"
+            />
+          </InputGroup>
 
-      {isSearching && (
-        <p className="text-xs text-muted-foreground">
-          {searching
-            ? 'Searching...'
-            : `${results.length} match${results.length === 1 ? '' : 'es'}`}
-        </p>
-      )}
+          {isSearching && (
+            <p className="text-xs text-muted-foreground">
+              {searching
+                ? 'Searching...'
+                : `${results.length} match${results.length === 1 ? '' : 'es'}`}
+            </p>
+          )}
 
-      {/* Results */}
-      {isSearching && searching && (
-        <div className="space-y-2">
-          <Skeleton className="h-14 w-full" />
-          <Skeleton className="h-14 w-full" />
+          {isSearching && searching && (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          )}
+
+          {isSearching && !searching && results.length === 0 && (
+            <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+              No matches for “{query.trim()}”.
+            </div>
+          )}
+
+          {results.length > 0 && !searching && (
+            <div className="flex flex-col gap-2">
+              {results.map((person) => {
+                const here = checkedInMap.get(person.id);
+                const name = `${person.first_name} ${person.last_name}`;
+                return (
+                  <Item key={person.id} variant="outline">
+                    <ItemMedia>
+                      <Avatar>
+                        <AvatarFallback>
+                          {getInitials(person.first_name, person.last_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>{name}</ItemTitle>
+                      <ItemDescription className="flex items-center gap-1.5">
+                        {person.category && (
+                          <Badge
+                            variant="outline"
+                            className={categoryColors[person.category] ?? ''}
+                          >
+                            {person.category}
+                          </Badge>
+                        )}
+                        {person.location && (
+                          <span className="inline-flex min-w-0 items-center gap-0.5">
+                            <MapPin className="size-3 shrink-0" />
+                            <span className="truncate">{person.location}</span>
+                          </span>
+                        )}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      {here ? (
+                        <Badge
+                          variant="outline"
+                          className="border-green-200 bg-green-100 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400"
+                        >
+                          <Check className="size-3" />
+                          Here{' '}
+                          {new Intl.DateTimeFormat('en-GB', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }).format(new Date(here))}
+                        </Badge>
+                      ) : (
+                        <Button
+                          size="sm"
+                          disabled={checkingId === person.id}
+                          onClick={() => void checkIn(person)}
+                        >
+                          Check in
+                        </Button>
+                      )}
+                    </ItemActions>
+                  </Item>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Came last Sunday, not here yet */}
+          <div className="mt-2 space-y-2">
+            <h2 className="text-sm font-medium">Came last Sunday, not here yet</h2>
+            {expectedLeft.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Everyone expected is here already.
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {expectedLeft.slice(0, 12).map((p) => (
+                    <ExpectedChip key={p.id} person={p} />
+                  ))}
+                </div>
+                {expectedLeft.length > 12 && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto cursor-pointer px-0"
+                    onClick={() => setShowAllOpen(true)}
+                  >
+                    Show all ({expectedLeft.length})
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      )}
 
-      {isSearching && !searching && results.length === 0 && (
-        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-          No matches for “{query.trim()}”.
+        {/* Right column */}
+        <div className="md:sticky md:top-16">
+          <TodaySoFarCard rows={todayRows} canUndo={canUndo} onUndo={(id) => void undo(id)} />
         </div>
-      )}
-
-      {results.length > 0 && !searching && (
-        <div className="flex flex-col gap-2">
-          {results.map((person) => {
-            const isIn = checkedIn.has(person.id);
-            const name = `${person.first_name} ${person.last_name}`;
-            return (
-              <Item key={person.id} variant="outline">
-                <ItemMedia>
-                  <Avatar>
-                    <AvatarFallback>
-                      {getInitials(person.first_name, person.last_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{name}</ItemTitle>
-                  <ItemDescription className="flex items-center gap-1.5">
-                    {person.category && (
-                      <Badge
-                        variant="outline"
-                        className={categoryColors[person.category] ?? ''}
-                      >
-                        {person.category}
-                      </Badge>
-                    )}
-                    {person.location && (
-                      <span className="inline-flex min-w-0 items-center gap-0.5">
-                        <MapPin className="size-3 shrink-0" />
-                        <span className="truncate">{person.location}</span>
-                      </span>
-                    )}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <div className="flex flex-col items-stretch gap-1.5">
-                    {isIn ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled
-                        className="cursor-default"
-                      >
-                        <Check className="size-3.5" />
-                        Here
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        disabled={checkingId === person.id}
-                        onClick={() => handleCheckIn(person)}
-                      >
-                        Check in
-                      </Button>
-                    )}
-                    {person.category !== 'New Convert' && (
-                      <MarkNewConvertButton
-                        person={person}
-                        onSaved={() =>
-                          setResults((prev) =>
-                            prev.map((r) =>
-                              r.id === person.id
-                                ? { ...r, category: 'New Convert' }
-                                : r
-                            )
-                          )
-                        }
-                      />
-                    )}
-                  </div>
-                </ItemActions>
-              </Item>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Helper */}
-      <div className="rounded-lg border bg-card p-3 text-center text-[13px] text-muted-foreground">
-        Not on the list? Register them below.
       </div>
 
-      {/* New visitor */}
-      <div className="mt-auto pt-2">
+      {/* Mobile fixed action */}
+      <div className="fixed inset-x-0 bottom-[4.25rem] z-30 px-4 md:hidden">
         <Button
           size="lg"
-          className="h-12 w-full text-base"
+          className="h-12 w-full text-base shadow-lg"
           onClick={() => setDrawerOpen(true)}
         >
           <Plus className="size-4" />
@@ -304,9 +412,46 @@ export default function CheckInPage() {
       <NewVisitorDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
-        onCheckedIn={refreshAttendance}
+        onCheckedIn={refresh}
         memberId={member?.id ?? ''}
       />
+
+      <Sheet open={showAllOpen} onOpenChange={setShowAllOpen}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Came last Sunday, not here yet</SheetTitle>
+            <SheetDescription>Tap a name to check them in.</SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-2 px-4 pb-4">
+            {expectedLeft.map((p) => (
+              <Item key={p.id} variant="outline">
+                <ItemMedia>
+                  <Avatar>
+                    <AvatarFallback>
+                      {getInitials(p.first_name, p.last_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle>
+                    {p.first_name} {p.last_name}
+                  </ItemTitle>
+                  <ItemDescription>{p.location ?? 'No location'}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Button
+                    size="sm"
+                    disabled={checkingId === p.id}
+                    onClick={() => void checkIn(p)}
+                  >
+                    Check in
+                  </Button>
+                </ItemActions>
+              </Item>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

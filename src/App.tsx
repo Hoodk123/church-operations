@@ -10,7 +10,8 @@ import CheckInPage from '@/components/check-in/CheckInPage';
 import MyFollowupsPage from '@/components/followups/MyFollowupsPage';
 import BoardPage from '@/components/board/BoardPage';
 import NeedsAttentionPage from '@/components/attention/NeedsAttentionPage';
-import TodayAttendancePage from '@/components/attendance/TodayAttendancePage';
+import HomePlaceholder from '@/components/home/HomePlaceholder';
+import Landing from '@/components/layout/Landing';
 
 function ProtectedRoute() {
   const [checking, setChecking] = useState(true);
@@ -69,15 +70,16 @@ export default function App() {
         <Route path="/login" element={<LoginForm />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
+            <Route index element={<Landing />} />
+            <Route path="/home" element={<HomePlaceholder />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/check-in" element={<CheckInPage />} />
             <Route path="/my-followups" element={<MyFollowupsPage />} />
             <Route path="/board" element={<BoardPage />} />
             <Route path="/needs-attention" element={<NeedsAttentionPage />} />
-            <Route path="/today" element={<TodayAttendancePage />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster position="top-center" richColors closeButton />
     </BrowserRouter>
