@@ -18,6 +18,7 @@ export interface Person {
   assigned_to: string | null;
   assigned_to_name: string | null;
   follow_up_status: string;
+  needs_pastor: boolean;
   last_contact_date: string | null;
   baptism_status: string | null;
   notes: string | null;

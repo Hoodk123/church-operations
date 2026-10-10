@@ -22,6 +22,26 @@ export const baptismStatuses = ['Not yet', 'Scheduled', 'Baptized'] as const;
 export const ageGroups = ['Child', 'Youth', 'Adult', 'Elderly'] as const;
 export const genders = ['Male', 'Female'] as const;
 
+export const CONTACT_METHODS = ['Call', 'WhatsApp', 'SMS', 'Visit', 'Other'] as const;
+export const CONTACT_OUTCOMES = [
+  'Reached',
+  'No answer',
+  'Scheduled visit',
+  'Needs pastor',
+  'Wrong number',
+] as const;
+
+/** Badge for people.flagged for the pastor (design uses purple). */
+export const needsPastorColor =
+  'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800';
+
+/** Days-since-last-contact dot: green under 4, amber 4-10, red over 10 or never. */
+export function contactDotColor(daysSinceLastContact: number | null): string {
+  if (daysSinceLastContact === null || daysSinceLastContact > 10) return 'bg-red-500';
+  if (daysSinceLastContact >= 4) return 'bg-amber-500';
+  return 'bg-green-500';
+}
+
 export const filterFieldConfigs = [
   { key: 'category', label: 'Category', values: [...categories] },
   { key: 'follow_up_status', label: 'Follow-up Status', values: [...followUpStatuses] },

@@ -1,0 +1,434 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Admin Panel Screens</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three build-first screens, each a phone (or desktop) mockup beside the shadcn parts it uses. Tokens mirror the app's neutral base-nova look. */
+:root{
+  --bg:#fafafa; --fg:#171717; --muted:#737373; --card:#ffffff; --border:#e5e5e5; --accent:#f4f4f5;
+  --primary:#171717; --primary-fg:#fafafa; --frame:#e9e9eb; --ring:#a1a1aa;
+  --blue-bg:#dbeafe; --blue-fg:#1e40af; --teal-bg:#ccfbf1; --teal-fg:#115e59;
+  --amber-bg:#fef3c7; --amber-fg:#92400e; --purple-bg:#ede9fe; --purple-fg:#5b21b6;
+  --pink-bg:#fce7f3; --pink-fg:#9d174d; --red-bg:#fee2e2; --red-fg:#991b1b;
+  --green-bg:#dcfce7; --green-fg:#166534; --gray-bg:#f4f4f5; --gray-fg:#3f3f46;
+  --dot-green:#22c55e; --dot-amber:#f59e0b; --dot-red:#ef4444;
+  --sans:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:40px 72px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:72px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.sec{display:flex;flex-direction:column;gap:24px}
+.sec-head{max-width:64ch}
+.stage{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.note{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.note h3{font-size:14px;margin:0;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--card)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.legend{font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:999px;border:1px solid var(--ring);margin-right:6px;vertical-align:-1px}
+.legend .l1::before{background:var(--fg);border-color:var(--fg)}
+.legend .l2::before{border-style:dashed}
+ul.tips{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+/* mockups */
+.phone{width:340px;max-width:100%;flex:0 0 auto;background:var(--frame);border:1px solid var(--border);border-radius:34px;padding:10px}
+.screen{background:var(--bg);border-radius:26px;border:1px solid var(--border);height:640px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.appbar b{font-size:17px;letter-spacing:-.01em}
+.sub{font-size:12px;color:var(--muted)}
+.body{flex:1;min-height:0;padding:4px 16px 12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.igroup{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted);font-size:15px}
+.igroup .t{color:var(--fg)}
+.caret{display:inline-block;width:1px;height:18px;background:var(--fg);margin-left:1px;vertical-align:-4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+.item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.item .main{flex:1;min-width:0}
+.item .nm{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden}
+.av{width:34px;height:34px;border-radius:999px;background:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:600;flex:0 0 auto}
+.av.sm{width:22px;height:22px;font-size:10px}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;line-height:1;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.b-blue{background:var(--blue-bg);color:var(--blue-fg)}.b-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.b-amber{background:var(--amber-bg);color:var(--amber-fg)}.b-purple{background:var(--purple-bg);color:var(--purple-fg)}
+.b-pink{background:var(--pink-bg);color:var(--pink-fg)}.b-red{background:var(--red-bg);color:var(--red-fg)}
+.b-green{background:var(--green-bg);color:var(--green-fg)}.b-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:10px;font:500 14px var(--sans);border:1px solid transparent;background:var(--primary);color:var(--primary-fg);white-space:nowrap}
+.btn.out{background:var(--card);color:var(--fg);border-color:var(--border)}
+.btn.lg{height:48px;font-size:15px;width:100%}
+.btn.sm{height:30px;padding:0 10px;font-size:13px;border-radius:8px}
+.btn.grow{flex:1}
+.toast{position:absolute;left:16px;right:16px;bottom:78px;background:var(--primary);color:var(--primary-fg);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:center}
+.nav{display:flex;border-top:1px solid var(--border);background:var(--card);padding:6px 6px 10px}
+.nav div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:6px 0;border-radius:8px}
+.nav .on{color:var(--fg);background:var(--accent);font-weight:500}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.drawer{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--border);margin:0 auto 4px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:500}
+.field .in{height:40px;border:1px solid var(--border);border-radius:10px;background:var(--card);display:flex;align-items:center;padding:0 12px;font-size:14px;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+.tg div{flex:1;text-align:center;font-size:13px;padding:9px 0;border-left:1px solid var(--border)}
+.tg div:first-child{border-left:0}
+.tg .on{background:var(--accent);font-weight:600}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);font-size:14px}
+.switch{width:38px;height:22px;border-radius:99px;background:var(--primary);position:relative;flex:0 0 auto}
+.switch::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:99px;background:var(--primary-fg)}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block;flex:0 0 auto}
+.dg{background:var(--dot-green)}.da{background:var(--dot-amber)}.dr{background:var(--dot-red)}
+.fu{display:flex;flex-direction:column;gap:10px}
+.fu .top{display:flex;gap:10px;align-items:flex-start}
+.fu .acts{display:flex;gap:8px}
+.warn{color:var(--amber-fg);font-weight:500}
+/* board */
+.desk{flex:1 1 100%;min-width:0;background:var(--frame);border:1px solid var(--border);border-radius:16px;padding:10px}
+.deskin{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.bar .logo{width:22px;height:22px;border-radius:6px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;font-size:10px;font-weight:700}
+.filters{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:13px}
+.scroll{overflow-x:auto;padding:0 14px 16px}
+.cols{display:grid;grid-template-columns:repeat(5,236px);gap:12px;min-width:max-content}
+.col{background:var(--accent);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:330px}
+.colh{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 4px}
+.colh .cnt{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.kc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;position:relative}
+.kc .r{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kc .nm{font-weight:500;font-size:14px}
+.kc.lift{outline:2px solid var(--ring);outline-offset:1px}
+.menu{position:absolute;right:8px;top:34px;z-index:2;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;width:150px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu div{padding:6px 8px;border-radius:6px}.menu .h{color:var(--muted);font-size:11px;padding-bottom:2px}
+.menu .on{background:var(--accent)}
+.drop{border:1.5px dashed var(--ring);border-radius:12px;height:54px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+/* parts table */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+code{font-family:var(--mono);font-size:13px}
+pre{margin:0;overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font:13px/1.6 var(--mono)}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="i-cols" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<style>
+/* admin-panel additions */
+.sc{overflow-x:auto;border-radius:10px}
+.app{display:grid;grid-template-columns:168px 1fr;min-width:940px}
+.sb{border-right:1px solid var(--border);padding:10px 8px;display:flex;flex-direction:column;gap:2px;font-size:13px;background:var(--bg)}
+.sb div{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--muted)}
+.sb .on{background:var(--accent);color:var(--fg);font-weight:500}
+.sb .grp{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:12px 9px 4px;color:var(--muted)}
+.mn{padding:18px 20px 22px;min-width:0;position:relative}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.ph .h{font-size:20px;letter-spacing:-.01em}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:16px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:6px}
+.lbl .n{font-family:var(--mono);font-weight:400}
+.big{font-size:34px;line-height:1;font-weight:600;letter-spacing:-.02em}
+.cnt4{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.cnt4 div{background:var(--accent);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.cnt4 b{display:block;font-size:18px;color:var(--fg);font-weight:600}
+.feed{display:flex;flex-direction:column;margin-top:6px}
+.feed div{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.feed span.t{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.qk{display:flex;flex-wrap:wrap;gap:6px}
+.qk span{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);font-size:13px}
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tag{font-size:11px;color:var(--blue-fg);background:var(--blue-bg);padding:3px 8px;border-radius:999px;width:fit-content}
+.prog{height:6px;border-radius:99px;background:var(--accent);overflow:hidden;width:150px}
+.prog i{display:block;height:100%;width:38%;background:var(--primary)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden;font-size:13px}
+.seg div{padding:6px 14px;border-left:1px solid var(--border)}.seg div:first-child{border-left:0}.seg .on{background:var(--accent);font-weight:600}
+.msg{background:var(--accent);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.55}
+.col-tbl{width:100%;min-width:0;font-size:13px}
+.col-tbl th{font-size:11px}
+.col-tbl tr.sel td{background:var(--accent)}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:340px;background:var(--bg);border-left:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:-12px 0 32px rgba(0,0,0,.14)}
+.dimm{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.vrow{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);display:flex;flex-direction:column;gap:6px;font-size:13px}
+.vrow .a{font-size:12px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.tile .d{font-size:12px;color:var(--muted)}
+.tile.hot{border-color:var(--dot-red)}
+.bulk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--accent);font-size:13px}
+.arow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--card);font-size:13px}
+.arow .grow{flex:1;min-width:0}
+.cb{width:16px;height:16px;border:1px solid var(--ring);border-radius:4px;flex:0 0 auto;display:grid;place-items:center}
+.cb.on{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.fly{box-shadow:0 18px 40px rgba(0,0,0,.28);transform:rotate(2.5deg);position:absolute;width:210px;z-index:3;background:var(--card)}
+.ghost{border:1.5px dashed var(--ring);border-radius:12px;padding:10px 12px;color:var(--muted);font-size:13px;opacity:.8}
+.overcol{outline:2px solid var(--ring);outline-offset:-2px;background:var(--bg)}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.rules .card b{display:block;margin-bottom:4px;font-size:14px}
+.rules .card p{font-size:13px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="kicker">Church Operations · admin panel</div>
+  <h1>Admin Panel Screens</h1>
+  <p class="lead">Check-in, Follow-ups, Attention and the Board redrawn with the fixes from your testing, plus the admin controls you described. One idea holds it together: the door records who came, volunteers care for people, and the admin watches both. Names below are examples.</p>
+</header>
+
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">The shape of it</div>
+    <h2>Who lands where</h2>
+    <p class="lead">Metrics are for the admin, so volunteers are not distracted on Sunday. Each role opens straight onto the one page it needs and only sees the sidebar items it can use.</p>
+  </div>
+  <div class="tw"><table>
+    <thead><tr><th>Role</th><th>Opens on</th><th>Sidebar</th></tr></thead>
+    <tbody>
+      <tr><td>Admin</td><td>Home (metrics and what needs you)</td><td>Home, Check-in, People, Follow-ups (My list and Volunteers), Board, Attention</td></tr>
+      <tr><td>Info Desk</td><td>Check-in</td><td>Check-in, People</td></tr>
+      <tr><td>Follow-up Coordinator</td><td>Follow-ups</td><td>Follow-ups, Board, People</td></tr>
+      <tr><td>Pastor</td><td>Follow-ups (flagged for pastor first)</td><td>Follow-ups, Board</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- CHECK-IN -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Door · Info Desk</div>
+    <h2>Check-in</h2>
+    <p class="lead">This page answers one question: who is here today? Search finds anyone already registered and marks them present. New people are registered with the button at the top. The right side shows the day as it fills up, so the page is never empty.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div class="on"><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">Check-in</b><div class="sub">Sunday Service · 12 Oct</div></div><span class="btn"><svg class="i"><use href="#i-plus"/></svg>New visitor</span></div>
+      <div class="g2">
+        <div class="stack">
+          <div class="igroup"><svg class="i"><use href="#i-search"/></svg><span class="t">ali<span class="caret"></span></span></div>
+          <div class="sub">2 matches</div>
+          <div class="item"><div class="av">AU</div><div class="main"><div class="nm">Aline Uwase</div><div class="meta"><span class="badge b-blue">Visitor</span><svg class="i" style="width:12px;height:12px"><use href="#i-pin"/></svg>Kinyinya, Kagugu</div></div><span class="btn sm">Check in</span></div>
+          <div class="item"><div class="av">AM</div><div class="main"><div class="nm">Alice Mukamana</div><div class="meta"><span class="badge b-gray">Member</span><svg class="i" style="width:12px;height:12px"><use href="#i-pin"/></svg>Kagugu</div></div><span class="badge b-green"><svg class="i" style="width:12px;height:12px;margin-right:4px"><use href="#i-check"/></svg>Here 09:42</span></div>
+          <div class="lbl">Came last Sunday, not here yet <span class="n">· tap to check in</span></div>
+          <div class="qk"><span>Eric Mugisha <svg class="i" style="width:13px;height:13px"><use href="#i-plus"/></svg></span><span>Divine Keza <svg class="i" style="width:13px;height:13px"><use href="#i-plus"/></svg></span><span>Jean Claude Niyo <svg class="i" style="width:13px;height:13px"><use href="#i-plus"/></svg></span><span>Grace Ineza <svg class="i" style="width:13px;height:13px"><use href="#i-plus"/></svg></span><span>Patrick Habimana <svg class="i" style="width:13px;height:13px"><use href="#i-plus"/></svg></span></div>
+        </div>
+        <div class="card">
+          <div class="sub">Today so far</div>
+          <div class="big">24</div>
+          <div class="cnt4"><div><b>6</b>Visitors</div><div><b>2</b>New converts</div><div><b>14</b>Members</div><div><b>2</b>Returning</div></div>
+          <div class="lbl" style="margin-top:14px">Just checked in</div>
+          <div class="feed">
+            <div><span class="av sm">AM</span>Alice Mukamana<span class="t">09:42</span><svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-undo"/></svg></div>
+            <div><span class="av sm">PH</span>Patrick H.<span class="t">09:38</span><svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-undo"/></svg></div>
+            <div><span class="av sm">GN</span>Gloria N.<span class="t">09:31</span><svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-undo"/></svg></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div></div></div></div>
+  <div class="stage"><div class="note" style="flex-basis:100%">
+    <h3>What changed from your test</h3>
+    <ul class="tips">
+      <li>"New visitor" is a normal button in the page header. The full-width bar stays on phones only.</li>
+      <li>A person already checked in shows "Here 09:42" instead of a second Check in button, so nobody is counted twice.</li>
+      <li>"New Convert" leaves the result row. It moves into the person's drawer as "Mark as New Convert", with a confirmation, because it is rare and should not sit next to Check in.</li>
+      <li>"Came last Sunday, not here yet" is a quick list for regulars, one tap each. It is built from the attendance table.</li>
+      <li>The Today panel replaces the separate Today page. "Undo" removes a mistaken check-in (Admin and Info Desk).</li>
+    </ul>
+  </div></div>
+</section>
+
+<!-- FOLLOW-UPS -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Care · volunteers</div>
+    <h2>My Follow-ups</h2>
+    <p class="lead">Cards sit in a grid instead of one stretched column. Anyone you finish with leaves the list and is written to the log. The panel on the right holds the message the admin wants everyone to send, already filled with the person's name.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div class="on"><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">My Follow-ups</b><div class="sub">5 waiting</div></div><div style="display:flex;gap:14px;align-items:center"><div class="seg"><div class="on">My list</div><div>Volunteers</div></div><div><div class="sub" style="text-align:right">3 of 8 done today</div><div class="prog"><i></i></div></div></div></div>
+      <div class="g2">
+        <div class="stack">
+          <div class="lbl" style="margin-top:0">Needs you now <span class="n">· 2</span></div>
+          <div class="cg">
+            <div class="card fu"><div class="top"><div class="av">GI</div><div style="flex:1;min-width:0"><div style="font-weight:500">Grace Ineza</div><div style="display:flex;gap:6px;margin-top:3px"><span class="badge b-teal">New Convert</span><span class="badge b-purple">Ask pastor</span></div></div><span class="dot dr" style="margin-top:6px"></span></div><span class="tag">New · assigned 2 days ago by Kevin</span><div class="warn" style="font-size:13px">Never contacted</div><div class="acts"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-phone"/></svg>Call</span><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-msg"/></svg>WhatsApp</span><span class="btn sm grow">Log</span></div></div>
+            <div class="card fu"><div class="top"><div class="av">DK</div><div style="flex:1;min-width:0"><div style="font-weight:500">Divine Keza</div><div style="display:flex;gap:6px;margin-top:3px"><span class="badge b-blue">Visitor</span><span class="sub">Gisozi</span></div></div><span class="dot dr" style="margin-top:6px"></span></div><div class="sub">Last contacted 12 days ago</div><div class="acts"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-phone"/></svg>Call</span><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-msg"/></svg>WhatsApp</span><span class="btn sm grow">Log</span></div></div>
+          </div>
+          <div class="lbl">This week <span class="n">· 3</span></div>
+          <div class="cg">
+            <div class="item"><div class="av">JN</div><div class="main"><div class="nm">Jean Claude Niyo</div><div class="meta"><span class="badge b-amber">M1 Class</span>6 days ago</div></div><span class="dot da"></span></div>
+            <div class="item"><div class="av">EM</div><div class="main"><div class="nm">Eric Mugisha</div><div class="meta"><span class="badge b-blue">Visitor</span>3 days ago</div></div><span class="dot dg"></span></div>
+          </div>
+          <div class="item" style="background:var(--accent);border-style:dashed"><svg class="i" style="color:var(--muted)"><use href="#i-down"/></svg><div class="main"><div class="nm">Done today</div><div class="meta">3 people, logged. Tap to review or undo.</div></div></div>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:10px">
+          <div><b>Message to send</b><div class="sub">Set by your admin. WhatsApp uses it automatically.</div></div>
+          <div class="sel" style="justify-content:space-between">Visitor welcome<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></div>
+          <div class="msg">Hello <b>Grace</b>, thank you for worshipping with us on Sunday. We were glad to meet you. Is there anything we can pray about with you this week?<br>Church Operations team</div>
+          <div class="acts" style="display:flex;gap:8px"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-copy"/></svg>Copy</span></div>
+          <div class="sub">Admin only: Edit templates</div>
+        </div>
+      </div>
+    </main>
+  </div></div></div></div>
+  <div class="stage"><div class="note" style="flex-basis:100%">
+    <h3>Rules for this page</h3>
+    <ul class="tips">
+      <li>Order: asked for pastor, then newly assigned, then never contacted, then longest since contact.</li>
+      <li>"Log" has a "Finished with this person" switch. When on, the status becomes Completed, the person leaves the list, and the log keeps the record.</li>
+      <li>After any log, the card moves to "Done today" at once, so nobody calls the same person twice.</li>
+      <li>The panel message is a template with {name} filled in. A volunteer picks one template; the admin writes and edits them.</li>
+    </ul>
+  </div></div>
+</section>
+
+<!-- VOLUNTEERS -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Control · admin</div>
+    <h2>Volunteers, inside Follow-ups</h2>
+    <p class="lead">The admin switches the page to "Volunteers" and sees everyone who follows people up with their numbers. Clicking a volunteer opens a panel on the same page: their people, who assigned each one, and when. No new page.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div class="on"><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></aside>
+    <main class="mn" style="min-height:430px">
+      <div class="ph"><div><b class="h">Follow-ups</b><div class="sub">4 volunteers · 31 people assigned</div></div><div class="seg"><div>My list</div><div class="on">Volunteers</div></div></div>
+      <div class="tw" style="min-width:0"><table class="col-tbl">
+        <thead><tr><th>Volunteer</th><th>Assigned</th><th>Contacted this week</th><th>Overdue</th><th>Last active</th></tr></thead>
+        <tbody>
+          <tr><td>Kevin Shyaka</td><td>8</td><td>5</td><td><span class="badge b-green">0</span></td><td>Today</td></tr>
+          <tr class="sel"><td>Rahman Mahfuj</td><td>9</td><td>4</td><td><span class="badge b-red">3</span></td><td>2 days ago</td></tr>
+          <tr><td>Sandrine Uwera</td><td>8</td><td>7</td><td><span class="badge b-green">0</span></td><td>Today</td></tr>
+          <tr><td>Pastor Emmanuel</td><td>6</td><td>2</td><td><span class="badge b-amber">1</span></td><td>Yesterday</td></tr>
+        </tbody></table></div>
+      <div class="dimm"></div>
+      <div class="sheet">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start"><div><b style="font-size:16px">Rahman Mahfuj</b><div class="sub">9 people · 3 overdue · Follow-up Coordinator</div></div><svg class="i" style="color:var(--muted)"><use href="#i-x"/></svg></div>
+        <div class="vrow"><div style="display:flex;justify-content:space-between;align-items:center"><b>Divine Keza</b><span class="badge b-amber">Contacted</span></div><div class="a">Assigned by Kevin · Mon 6 Oct (3 days ago)</div><div class="a">Last contact: 12 days ago <span class="dot dr" style="margin-left:4px"></span></div></div>
+        <div class="vrow"><div style="display:flex;justify-content:space-between;align-items:center"><b>Eric Mugisha</b><span class="badge b-red">Not Started</span></div><div class="a">Assigned by Kevin · Sun 5 Oct (4 days ago)</div><div class="a">Never contacted <span class="dot dr" style="margin-left:4px"></span></div></div>
+        <div class="vrow"><div style="display:flex;justify-content:space-between;align-items:center"><b>Patrick Habimana</b><span class="badge b-blue">Met</span></div><div class="a">Assigned by Pastor Emmanuel · 28 Sep</div><div class="a">Last contact: 2 days ago <span class="dot dg" style="margin-left:4px"></span></div></div>
+        <div class="acts" style="display:flex;gap:8px;margin-top:auto"><span class="btn out grow">Reassign selected</span><span class="btn grow">Assign more</span></div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- ATTENTION -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Control · admin</div>
+    <h2>Attention</h2>
+    <p class="lead">A triage list, not a report. It shows people nobody is looking after and lets the admin hand them to a volunteer in one tap. Whoever receives them sees them first on their own list with a "New" tag.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div class="on"><svg class="i"><use href="#i-alert"/></svg>Attention</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">Attention</b><div class="sub">9 people need someone</div></div></div>
+      <div class="stack">
+        <div class="bulk"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><b>2 selected</b>
+          <span class="sel">Assign to: Sandrine (8 people)<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></span><span class="btn sm">Assign</span><span class="sub">Suggested: the volunteer with the fewest people</span></div>
+        <div class="lbl">No volunteer yet <span class="n">· 3</span></div>
+        <div class="arow"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><div class="grow"><b>Eric Mugisha</b> <span class="badge b-blue" style="margin-left:6px">Visitor</span><div class="sub">Registered Sun 5 Oct, nobody assigned</div></div><span class="btn out sm">Assign…</span></div>
+        <div class="arow"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><div class="grow"><b>Gloria Nyirahabimana</b> <span class="badge b-teal" style="margin-left:6px">New Convert</span><div class="sub">Registered today, asked for pastor</div></div><span class="btn out sm">Assign…</span></div>
+        <div class="lbl">Not started for more than 3 days <span class="n">· 4</span></div>
+        <div class="arow"><span class="cb"></span><div class="grow"><b>Divine Keza</b> <span class="badge b-blue" style="margin-left:6px">Visitor</span><div class="sub">Rahman Mahfuj · 6 days, not started</div></div><span class="btn out sm">Reassign…</span></div>
+        <div class="lbl">Gone quiet, no contact in 14 days <span class="n">· 2</span></div>
+        <div class="arow"><span class="cb"></span><div class="grow"><b>Patrick Habimana</b> <span class="badge b-purple" style="margin-left:6px">Returning</span><div class="sub">Pastor Emmanuel · last contact 19 days ago</div></div><span class="btn out sm">Reassign…</span></div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- HOME -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Control · admin home</div>
+    <h2>Home</h2>
+    <p class="lead">You were right that Today should be the front door for the admin. I left numbers for later only to get the working screens built first, not to avoid distraction. Volunteers never see this page, which is what keeps Sunday simple for them.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div class="on"><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">Matthew 20:26</b><div class="sub">Whoever wants to become great among you must be your servant.</div></div></div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Checked in today</div><div class="v">24</div><div class="d">3 more than last Sunday</div></div>
+        <div class="tile"><div class="k">New visitors</div><div class="v">6</div><div class="d">2 new converts</div></div>
+        <div class="tile"><div class="k">Waiting for first contact</div><div class="v">11</div><div class="d">3 have no volunteer</div></div>
+        <div class="tile hot"><div class="k">Overdue follow-ups</div><div class="v">4</div><div class="d">Open Attention</div></div>
+        <div class="tile"><div class="k">M1 class in progress</div><div class="v">7</div><div class="d">2 baptisms scheduled</div></div>
+        <div class="tile"><div class="k">Contacted this week</div><div class="v">18</div><div class="d">Across 4 volunteers</div></div>
+      </div>
+      <div class="cg" style="margin-top:14px;align-items:start">
+        <div class="card"><b>Needs you</b><div class="feed"><div>3 people have no volunteer<span class="t">Assign</span></div><div>Divine Keza, 6 days not started<span class="t">Open</span></div><div>Gloria N. asked for pastor<span class="t">Open</span></div></div></div>
+        <div class="card"><b>Volunteers this week</b><div class="feed"><div>Sandrine Uwera<span class="t">7 contacted</span></div><div>Kevin Shyaka<span class="t">5 contacted</span></div><div>Rahman Mahfuj<span class="t">4 contacted, 3 overdue</span></div></div></div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- BOARD -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Fix · Follow-up Board</div>
+    <h2>Dragging a card</h2>
+    <p class="lead">In your screenshots the card is cut off at the column edge and a small scrollbar appears inside the column, which is what makes everything shake. The card has to float above the board while you hold it, and the columns must not scroll on their own.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc" style="padding:16px 16px 20px">
+    <div class="cols" style="grid-template-columns:repeat(3,230px);position:relative">
+      <div class="col"><div class="colh"><span class="badge b-red">Not Started</span><span class="cnt">7</span></div><div class="ghost">Eric Mugisha, being moved</div><div class="kc"><div class="r"><span class="nm">Grace Ineza</span></div><div class="r"><span class="badge b-teal">New Convert</span><span class="sub"><span class="dot dr"></span> never</span></div></div></div>
+      <div class="col overcol"><div class="colh"><span class="badge b-amber">Contacted</span><span class="cnt">5</span></div><div class="kc"><div class="r"><span class="nm">Divine Keza</span></div><div class="r"><span class="badge b-blue">Visitor</span><span class="sub"><span class="dot dr"></span> 12 days</span></div></div><div class="drop">Drop here</div></div>
+      <div class="col"><div class="colh"><span class="badge b-blue">Met</span><span class="cnt">3</span></div><div class="kc"><div class="r"><span class="nm">Jean Claude Niyo</span></div><div class="r"><span class="badge b-amber">M1 Class</span><span class="sub"><span class="dot da"></span> 6 days</span></div></div></div>
+      <div class="kc fly" style="left:160px;top:60px"><div class="r"><span class="nm">Eric Mugisha</span></div><div class="r"><span class="badge b-blue">Visitor</span><span class="sub"><span class="dot dg"></span> 1 day</span></div></div>
+    </div>
+  </div></div></div>
+  <div class="rules">
+    <div class="card"><b>The card follows the pointer</b><p>The dragged card is drawn in a floating layer above everything, with a stronger shadow. The original spot shows a dashed placeholder, and the column under the pointer gets an outline.</p></div>
+    <div class="card"><b>One scrollbar only</b><p>Columns grow with their cards. The board scrolls sideways in one place, and the page scrolls up and down. No column has its own scrollbar, so nothing resizes while you drag.</p></div>
+    <div class="card"><b>A click is not a drag</b><p>A card must move a few pixels before a drag starts, so tapping still opens the person's drawer. On phones, hold briefly or use the ... menu.</p></div>
+  </div>
+</section>
+
+</div>
+
+</body></html>
