@@ -13,3 +13,11 @@ export function daysSince(isoDate: string): number {
   const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.max(0, Math.floor((todayMid.getTime() - then.getTime()) / 86_400_000));
 }
+
+/** "today" | "yesterday" | "N days ago" for a past ISO date or timestamp. */
+export function relativeDays(isoDate: string): string {
+  const days = daysSince(isoDate);
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  return `${days} days ago`;
+}

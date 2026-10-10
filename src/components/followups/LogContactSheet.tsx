@@ -5,6 +5,8 @@ import { rlsErrorMessage } from '@/lib/rls-error';
 import { useIsMobile } from '@/lib/use-is-mobile';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
@@ -53,6 +55,7 @@ export default function LogContactSheet({
   const [method, setMethod] = useState<string>('Call');
   const [outcome, setOutcome] = useState<string>('Reached');
   const [note, setNote] = useState('');
+  const [finished, setFinished] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -60,6 +63,7 @@ export default function LogContactSheet({
     setMethod('Call');
     setOutcome('Reached');
     setNote('');
+    setFinished(false);
     setError('');
   }
 
@@ -79,6 +83,7 @@ export default function LogContactSheet({
       method,
       outcome,
       note: note.trim() || null,
+      finished,
     });
 
     setSubmitting(false);
@@ -148,6 +153,20 @@ export default function LogContactSheet({
         />
       </div>
 
+      <div className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Finished with this person</p>
+          <p className="text-xs text-muted-foreground">
+            Marks the follow-up Completed. The log stays as the record.
+          </p>
+        </div>
+        <Switch
+          checked={finished}
+          onCheckedChange={setFinished}
+          aria-label="Finished with this person"
+        />
+      </div>
+
       <div className="flex gap-2">
         <Button
           type="button"
@@ -158,12 +177,15 @@ export default function LogContactSheet({
           Cancel
         </Button>
         <Button type="submit" className="flex-1 text-base" disabled={submitting}>
+          {submitting && <Spinner className="size-4" />}
           {submitting ? 'Saving...' : 'Save'}
         </Button>
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Saving moves a Not Started person to Contacted.
+        {finished
+          ? 'This person moves to Completed and leaves your list.'
+          : 'Saving moves a Not Started person to Contacted.'}
       </p>
     </form>
   );
