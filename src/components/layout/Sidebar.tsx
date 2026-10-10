@@ -1,22 +1,20 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { visibleNavItems } from './nav';
 
 interface SidebarProps {
   collapsed: boolean;
+  role: string;
 }
 
-const navItems = [
-  { label: 'People', icon: Users, href: '/dashboard' },
-];
-
-export default function Sidebar({ collapsed }: SidebarProps) {
+export default function Sidebar({ collapsed, role }: SidebarProps) {
   const location = useLocation();
+  const navItems = visibleNavItems(role);
 
   return (
     <aside
       className={cn(
-        'sticky top-14 z-30 h-[calc(100vh-3.5rem)] border-r bg-background transition-all duration-200 shrink-0',
+        'sticky top-14 z-30 hidden h-[calc(100vh-3.5rem)] shrink-0 border-r bg-background transition-all duration-200 md:block',
         collapsed ? 'w-14' : 'w-56'
       )}
     >
@@ -45,7 +43,7 @@ export default function Sidebar({ collapsed }: SidebarProps) {
         {/* Placeholder items for future expansion */}
         {!collapsed && (
           <>
-            <div className="my-2 h-px bg-border" />
+            <div className="my-2 h-px border-t border-border" />
             <span className="px-3 py-1 text-xs text-muted-foreground/50 font-medium uppercase tracking-wider">
               Coming soon
             </span>

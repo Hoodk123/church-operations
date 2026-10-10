@@ -12,8 +12,12 @@ import {
   Compass,
   FileText,
   Clock,
+  History,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useShellMember } from '@/components/layout/shell';
+import LogContactSheet from '@/components/followups/LogContactSheet';
+import { MarkNewConvertButton } from './MarkNewConvertButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +54,7 @@ import {
   genders,
   ageGroups,
   followUpStatuses,
+  needsPastorColor,
 } from './constants';
 import type { Person } from './columns';
 
@@ -60,6 +65,45 @@ function formatDate(dateStr: string | null): string | null {
     day: 'numeric',
     year: 'numeric',
   }).format(new Date(dateStr));
+}
+
+interface ContactLogRow {
+  id: string;
+  contacted_at: string;
+  method: string;
+  outcome: string;
+  note: string | null;
+  logged_by: { full_name: string } | null;
+}
+
+const OUTCOME_COLORS: Record<string, string> = {
+  Reached: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
+  'No answer': 'bg-neutral-100 text-neutral-800 border-neutral-200 dark:bg-neutral-900/30 dark:text-neutral-400 dark:border-neutral-800',
+  'Scheduled visit': 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800',
+  'Needs pastor': needsPastorColor,
+  'Wrong number': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
+};
+
+interface RawLogRow {
+  id: string;
+  contacted_at: string;
+  method: string;
+  outcome: string;
+  note: string | null;
+  logged_by: { full_name: string }[] | { full_name: string } | null;
+}
+
+function normalizeLogs(data: RawLogRow[]): ContactLogRow[] {
+  return data.map((row) => ({
+    id: row.id,
+    contacted_at: row.contacted_at,
+    method: row.method,
+    outcome: row.outcome,
+    note: row.note,
+    logged_by: Array.isArray(row.logged_by)
+      ? (row.logged_by[0] ?? null)
+      : ((row.logged_by as { full_name: string } | null) ?? null),
+  }));
 }
 
 interface PersonDetailDrawerProps {
@@ -89,7 +133,11 @@ export default function PersonDetailDrawer({
   const [error, setError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [contactLog, setContactLog] = useState<ContactLogRow[]>([]);
+  const [logOpen, setLogOpen] = useState(false);
   const supabase = createClient();
+  const member = useShellMember();
+  const memberId = member?.id ?? '';
 
   useEffect(() => {
     async function loadTeam() {
@@ -105,6 +153,28 @@ export default function PersonDetailDrawer({
       loadTeam();
     }
   }, [open, supabase]);
+
+  useEffect(() => {
+    const id = person?.id;
+    if (!open || !id) return;
+    let active = false;
+    async function loadHistory() {
+      const { data, error: loadErr } = await supabase
+        .from('contact_log')
+        .select('id, method, outcome, note, contacted_at, logged_by:team_members(full_name)')
+        .eq('person_id', id)
+        .order('contacted_at', { ascending: false })
+        .limit(50);
+      if (active) return;
+      if (!loadErr && data) {
+        setContactLog(normalizeLogs(data as RawLogRow[]));
+      }
+    }
+    loadHistory();
+    return () => {
+      active = true;
+    };
+  }, [supabase, open, person]);
 
   if (!person) return null;
 
@@ -220,7 +290,16 @@ export default function PersonDetailDrawer({
                 {editing ? 'Edit Person Details' : `${p.first_name} ${p.last_name}`}
               </SheetTitle>
               {!editing && (
-                <div className="flex items-center gap-1.5 pr-6">
+                <div className="flex flex-wrap items-center gap-1.5 pr-6">
+                  {p.category !== 'New Convert' && (
+                    <MarkNewConvertButton
+                      person={p}
+                      className="h-7 text-xs"
+                      onSaved={() =>
+                        onUpdated({ ...p, category: 'New Convert', needs_pastor: true })
+                      }
+                    />
+                  )}
                   <Button size="sm" variant="outline" onClick={startEdit} className="h-7 text-xs cursor-pointer">
                     Edit
                   </Button>
@@ -542,11 +621,83 @@ export default function PersonDetailDrawer({
                     }
                   />
                 </div>
+
+                {/* Card 3 — Contact History */}
+                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Contact History
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setLogOpen(true)}
+                      className="h-7 text-xs cursor-pointer"
+                    >
+                      Log contact
+                    </Button>
+                  </div>
+                  {contactLog.length === 0 ? (
+                    <p className="text-xs text-muted-foreground italic">
+                      No contacts logged yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {contactLog.map((log) => (
+                        <div key={log.id} className="space-y-1 rounded-md border bg-muted/20 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-xs font-medium">
+                              <History className="size-3.5 shrink-0 text-muted-foreground" />
+                              {log.method}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={OUTCOME_COLORS[log.outcome] ?? ''}
+                            >
+                              {log.outcome}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            {formatDate(log.contacted_at)} ·{' '}
+                            {log.logged_by?.full_name ?? 'Team member'}
+                          </p>
+                          {log.note && (
+                            <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">
+                              {log.note}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
         </SheetContent>
       </Sheet>
+
+      <LogContactSheet
+        open={logOpen}
+        onOpenChange={setLogOpen}
+        personId={personId}
+        personName={`${p.first_name} ${p.last_name}`}
+        memberId={memberId}
+        onSaved={() => {
+          async function reload() {
+            const { data, error: loadErr } = await supabase
+              .from('contact_log')
+              .select('id, method, outcome, note, contacted_at, logged_by:team_members(full_name)')
+              .eq('person_id', personId)
+              .order('contacted_at', { ascending: false })
+              .limit(50);
+            if (!loadErr && data) {
+              setContactLog(normalizeLogs(data as RawLogRow[]));
+            }
+          }
+          void reload();
+        }}
+      />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
