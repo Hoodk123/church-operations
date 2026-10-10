@@ -10,8 +10,9 @@ import CheckInPage from '@/components/check-in/CheckInPage';
 import MyFollowupsPage from '@/components/followups/MyFollowupsPage';
 import BoardPage from '@/components/board/BoardPage';
 import NeedsAttentionPage from '@/components/attention/NeedsAttentionPage';
-import HomePlaceholder from '@/components/home/HomePlaceholder';
+import Home from '@/components/home/Home';
 import Landing from '@/components/layout/Landing';
+import RoleGate from '@/components/layout/RoleGate';
 
 function ProtectedRoute() {
   const [checking, setChecking] = useState(true);
@@ -71,12 +72,14 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route index element={<Landing />} />
-            <Route path="/home" element={<HomePlaceholder />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/check-in" element={<CheckInPage />} />
-            <Route path="/my-followups" element={<MyFollowupsPage />} />
-            <Route path="/board" element={<BoardPage />} />
-            <Route path="/needs-attention" element={<NeedsAttentionPage />} />
+            <Route element={<RoleGate />}>
+              <Route path="/home" element={<Home />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/check-in" element={<CheckInPage />} />
+              <Route path="/my-followups" element={<MyFollowupsPage />} />
+              <Route path="/board" element={<BoardPage />} />
+              <Route path="/needs-attention" element={<NeedsAttentionPage />} />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

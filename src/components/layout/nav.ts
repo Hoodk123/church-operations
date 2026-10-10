@@ -12,8 +12,14 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Home', href: '/home', icon: Home, mobile: true, roles: ['Admin'] },
-  { label: 'People', href: '/dashboard', icon: Users, mobile: false },
+  { label: 'Home', href: '/home', icon: Home, mobile: false, roles: ['Admin'] },
+  {
+    label: 'People',
+    href: '/dashboard',
+    icon: Users,
+    mobile: false,
+    roles: ['Admin', 'Info Desk', 'Follow-up Coordinator'],
+  },
   {
     label: 'Check-in',
     href: '/check-in',
@@ -21,9 +27,27 @@ export const NAV_ITEMS: NavItem[] = [
     mobile: true,
     roles: ['Admin', 'Info Desk'],
   },
-  { label: 'Follow-ups', href: '/my-followups', icon: Phone, mobile: true },
-  { label: 'Board', href: '/board', icon: Columns3, mobile: true },
-  { label: 'Attention', href: '/needs-attention', icon: TriangleAlert, mobile: true },
+  {
+    label: 'Follow-ups',
+    href: '/my-followups',
+    icon: Phone,
+    mobile: true,
+    roles: ['Admin', 'Follow-up Coordinator', 'Pastor'],
+  },
+  {
+    label: 'Board',
+    href: '/board',
+    icon: Columns3,
+    mobile: true,
+    roles: ['Admin', 'Follow-up Coordinator', 'Pastor'],
+  },
+  {
+    label: 'Attention',
+    href: '/needs-attention',
+    icon: TriangleAlert,
+    mobile: true,
+    roles: ['Admin'],
+  },
 ];
 
 export function visibleNavItems(role: string | null, mobile = false): NavItem[] {

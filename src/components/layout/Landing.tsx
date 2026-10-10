@@ -1,17 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useShellMember } from './shell';
-
-/** Where each role starts after login. */
-function landingPath(role: string | null | undefined): string {
-  switch (role) {
-    case 'Admin':
-      return '/home';
-    case 'Info Desk':
-      return '/check-in';
-    default:
-      return '/my-followups';
-  }
-}
+import { landingPath } from './roles';
 
 export default function Landing() {
   const member = useShellMember();
