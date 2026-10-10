@@ -15,10 +15,12 @@ import {
   FollowUpRow,
 } from './FollowUpCard';
 import { fullName, type FollowUpPerson } from './utils';
+import VolunteersTab from './VolunteersTab';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Empty, EmptyDescription, EmptyTitle } from '@/components/ui/empty';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Tooltip,
   TooltipContent,
@@ -92,6 +94,7 @@ export default function MyFollowupsPage() {
   const [logFor, setLogFor] = useState<FollowUpPerson | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [doneOpen, setDoneOpen] = useState(false);
+  const [tab, setTab] = useState<'mine' | 'volunteers'>('mine');
 
   const memberId = member?.id ?? '';
 
@@ -195,13 +198,8 @@ export default function MyFollowupsPage() {
 
   const isEmpty = ordered.length === 0 && doneToday.length === 0;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <ScreenHeader
-        title="My Follow-ups"
-        sub={`${ordered.length} ${ordered.length === 1 ? 'person' : 'people'} waiting`}
-      />
-
+  const mineBody = (
+    <>
       {!loading && (
         <div className="flex items-center gap-3">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
@@ -349,6 +347,40 @@ export default function MyFollowupsPage() {
             )}
           </div>
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ScreenHeader
+        title={admin && tab === 'volunteers' ? 'Follow-ups' : 'My Follow-ups'}
+        sub={
+          admin && tab === 'volunteers'
+            ? undefined
+            : `${ordered.length} ${ordered.length === 1 ? 'person' : 'people'} waiting`
+        }
+      />
+
+      {admin ? (
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as 'mine' | 'volunteers')}
+          className="gap-4"
+        >
+          <TabsList>
+            <TabsTrigger value="mine">My list</TabsTrigger>
+            <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
+          </TabsList>
+          <TabsContent value="mine" className="flex flex-col gap-4">
+            {mineBody}
+          </TabsContent>
+          <TabsContent value="volunteers">
+            <VolunteersTab />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="flex flex-col gap-4">{mineBody}</div>
       )}
 
       {logFor && (
