@@ -27,6 +27,7 @@ export interface M1Class {
   venue: string | null;
   required_days: number;
   status: string;
+  archived_at: string | null;
   created_by: string | null;
   created_at: string;
 }

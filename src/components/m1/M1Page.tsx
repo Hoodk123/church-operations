@@ -17,12 +17,14 @@ import EnrolledTab from '@/components/m1/EnrolledTab';
 import AddSheet from '@/components/m1/AddSheet';
 import RemindersSheet from '@/components/m1/RemindersSheet';
 import NewClassDialog from '@/components/m1/NewClassDialog';
+import { ClassMenu } from '@/components/m1/ClassActions';
 import { NeedsM1Tab } from '@/components/m1/NeedsM1Tab';
 import { MissedTab } from '@/components/m1/MissedTab';
 import { MaterialsTab } from '@/components/m1/MaterialsTab';
 import { CertificatesTab } from '@/components/m1/CertificatesTab';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -45,18 +47,20 @@ export default function M1Page() {
   const [activeSessionState, setActiveSessionState] = useState<{ id: string; session: M1Session | null } | null>(
     null
   );
+  const [sessions, setSessions] = useState<M1Session[]>([]);
   const [statsNonce, setStatsNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>('enrolled');
   const [addOpen, setAddOpen] = useState(false);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const loadClasses = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('m1_classes')
-      .select('id, title, venue, required_days, status, created_by, created_at')
+      .select('id, title, venue, required_days, status, archived_at, created_by, created_at')
       .order('status', { ascending: false })
       .order('created_at', { ascending: false });
     if (error) {
@@ -68,7 +72,10 @@ export default function M1Page() {
       setClassId((prev) =>
         prev && rows.some((k) => k.id === prev)
           ? prev
-          : (rows.find((k) => k.status === 'Open')?.id ?? rows[0]?.id ?? null)
+          : (rows.find((k) => k.status === 'Open' && !k.archived_at)?.id ??
+            rows.find((k) => !k.archived_at)?.id ??
+            rows[0]?.id ??
+            null)
       );
     }
     setLoading(false);
@@ -85,6 +92,7 @@ export default function M1Page() {
       .then(([next, sessions]) => {
         if (cancelled) return;
         setStatsState({ id: classId, data: next });
+        setSessions(sessions);
         setActiveSessionState({
           id: classId,
           session: sessions.find((s) => !s.closed) ?? null,
@@ -106,14 +114,27 @@ export default function M1Page() {
 
   const klass = useMemo(() => classes.find((k) => k.id === classId) ?? null, [classes, classId]);
 
+  const visibleClasses = useMemo(
+    () => (showArchived ? classes : classes.filter((k) => !k.archived_at)),
+    [classes, showArchived]
+  );
+
   const classItems = useMemo<SelectOption[]>(
     () =>
-      classes.map((k) => ({
+      visibleClasses.map((k) => ({
         value: k.id,
-        label: k.status === 'Closed' ? `${k.title} (closed)` : k.title,
+        label: k.archived_at ? `${k.title} (archived)` : k.status === 'Closed' ? `${k.title} (closed)` : k.title,
       })),
-    [classes]
+    [visibleClasses]
   );
+
+  function toggleArchived(next: boolean) {
+    setShowArchived(next);
+    if (!next && klass?.archived_at) {
+      const fallback = classes.find((k) => !k.archived_at);
+      setClassId(fallback?.id ?? null);
+    }
+  }
 
   const supportsTabs = isLeader && !!klass;
 
@@ -160,25 +181,31 @@ export default function M1Page() {
                 <SelectValue placeholder="Choose a class" />
               </SelectTrigger>
               <SelectContent>
-                {classes.map((k) => (
+                {visibleClasses.map((k) => (
                   <SelectItem key={k.id} value={k.id}>
-                    <span className={k.status === 'Closed' ? 'line-through opacity-60' : ''}>
+                    <span className={k.status === 'Closed' || k.archived_at ? 'opacity-60' : ''}>
                       {k.title}
                     </span>
-                    {k.status === 'Closed' && ' (closed)'}
+                    {k.archived_at ? ' (archived)' : k.status === 'Closed' ? ' (closed)' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {klass && (
               <>
-                <Badge variant={klass.status === 'Open' ? 'default' : 'outline'}>
-                  {klass.status}
+                <Badge variant={klass.archived_at ? 'outline' : klass.status === 'Open' ? 'default' : 'outline'}>
+                  {klass.archived_at ? 'Archived' : klass.status}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   {stats?.days ?? klass.required_days} days · {venueLabel(klass.venue)}
                 </span>
               </>
+            )}
+            {classes.some((k) => k.archived_at) && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Checkbox checked={showArchived} onCheckedChange={(v) => toggleArchived(v === true)} />
+                Show archived
+              </label>
             )}
             <div className="ml-auto flex items-center gap-2">
               <Button
@@ -198,6 +225,15 @@ export default function M1Page() {
                 <Plus className="size-4" />
                 Add member
               </Button>
+              {klass && (
+                <ClassMenu
+                  klass={klass}
+                  sessions={sessions}
+                  isAdmin={isAdmin}
+                  isLeader={isLeader}
+                  onChanged={reload}
+                />
+              )}
             </div>
           </div>
 
