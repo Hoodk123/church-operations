@@ -449,8 +449,7 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
         open={!!personSheet}
         onOpenChange={(o) => setPersonSheet(o ? personSheet : null)}
         person={personSheet}
-        classId={classId}
-        requiredDays={requiredDays}
+        klass={klass}
         isAdmin={isAdmin}
         onChanged={onChanged}
       />
