@@ -1,29 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { CalendarX2, Link2, Megaphone } from 'lucide-react';
+import { CalendarX2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import {
   fmtDate,
   fmtTime,
   personName,
+  venueLabel,
   fetchClassSessions,
   type M1Class,
   type M1Session,
-  type M1Enrollment,
+  type M1Person,
 } from '@/components/m1/m1';
 import { useShellMember } from '@/components/layout/shell';
-import { fillTemplate } from '@/lib/templates';
+import { fillTemplate, ABSENCE_REASONS } from '@/lib/templates';
 import { fetchTemplate } from '@/components/classes/templates';
+import { pickChannel, messageHref } from '@/lib/messaging';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Textarea } from '@/components/ui/textarea';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle, ItemMedia } from '@/components/ui/item';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { initials } from '@/lib/names';
-import ComposeMessageSheet from '@/components/classes/ComposeMessageSheet';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { type SelectOption } from '@/lib/select-items';
+
+const MATERIALS_BUCKET = 'm1-materials';
+const REPLAY_PLACEHOLDER = '—';
 
 interface MissedTabProps {
   klass: M1Class;
@@ -31,92 +44,291 @@ interface MissedTabProps {
   onChanged: () => void;
 }
 
-interface AbsentRow {
-  person: M1Enrollment['people'];
+interface MissedRow {
+  person: M1Person;
   status: string;
-  reason: string | null;
+  reply: { reason: string; note: string | null; created_at: string } | null;
+  sentAt: string | null;
+}
+
+interface ReplyInfo {
+  person_id: string;
+  reason: string;
+  note: string | null;
+  created_at: string;
+  name: string;
+}
+
+function fmtClock(iso: string): string {
+  const date = new Date(iso);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 export function MissedTab({ klass, onChanged }: MissedTabProps) {
   const member = useShellMember();
   const supabase = createClient();
+  const classId = klass.id;
 
   const [sessions, setSessions] = useState<M1Session[]>([]);
-  const [selected, setSelected] = useState<M1Session | null>(null);
-  const [absent, setAbsent] = useState<AbsentRow[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rows, setRows] = useState<MissedRow[]>([]);
   const [template, setTemplate] = useState('');
+  const [reasonCounts, setReasonCounts] = useState<Record<string, number>>({});
+  const [replyTotal, setReplyTotal] = useState(0);
+  const [latestReply, setLatestReply] = useState<ReplyInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [composeFor, setComposeFor] = useState<M1Enrollment['people'] | null>(null);
-  const [linking, setLinking] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  const [sending, setSending] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<MissedRow | null>(null);
+  const [recording, setRecording] = useState(false);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      fetchClassSessions(supabase, klass.id),
-      fetchTemplate(supabase, 'm1_catch_up'),
-    ])
-      .then(([s, tpl]) => {
-        setSessions(s);
-        setTemplate(tpl?.body ?? '');
-        setSelected((prev) => {
-          if (prev && s.some((x) => x.id === prev.id)) return prev;
-          const firstClosed = s.find((x) => x.closed);
-          return firstClosed ?? s[0] ?? null;
-        });
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [supabase, klass.id]);
+  const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  const closed = useMemo(() => sessions.filter((s) => s.closed), [sessions]);
 
   useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!selected) return;
     let cancelled = false;
-    Promise.all([
-      supabase
-        .from('m1_attendance')
-        .select(
-          'session_id, person_id, status, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
-        )
-        .eq('session_id', selected.id)
-        .in('status', ['Absent', 'Excused']),
-      supabase.from('m1_absence_replies').select('person_id, reason, created_at').eq('session_id', selected.id),
-    ]).then(([att, replies]) => {
+    fetchClassSessions(supabase, classId).then((s) => {
       if (cancelled) return;
-      const absentRows = (att.data ?? []) as {
-        person_id: string;
-        status: string;
-        people: M1Enrollment['people'] | M1Enrollment['people'][];
-      }[];
-      const personOf = (row: { people: M1Enrollment['people'] | M1Enrollment['people'][]; person_id: string }) =>
-        Array.isArray(row.people) ? (row.people[0] ?? null) : row.people;
-      const reasonMap = new Map<string, string>();
-      for (const r of (replies.data ?? []) as { person_id: string; reason: string }[]) {
-        if (!reasonMap.has(r.person_id)) reasonMap.set(r.person_id, r.reason);
-      }
-      setAbsent(
-        absentRows
-          .map((r) => ({ person: personOf(r), status: r.status, reason: reasonMap.get(r.person_id) ?? null }))
-          .filter((r): r is AbsentRow => !!r.person)
-      );
+      setSessions(s);
+      const firstClosed = s.find((row) => row.closed);
+      setSelectedId((prev) => (prev && s.some((row) => row.id === prev && row.closed) ? prev : firstClosed?.id ?? null));
     });
     return () => {
       cancelled = true;
     };
-  }, [supabase, selected]);
+  }, [supabase, classId, nonce]);
 
-  const lastSession = useMemo(() => sessions.find((s) => s.closed) ?? sessions[0] ?? null, [sessions]);
+  useEffect(() => {
+    fetchTemplate(supabase, 'm1_catch_up').then((t) => setTemplate(t?.body ?? ''));
+  }, [supabase]);
 
-  if (loading) return <div className="flex justify-center py-10"><Spinner /></div>;
+  useEffect(() => {
+    if (!selectedId) {
+      setRows([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      supabase
+        .from('m1_attendance')
+        .select(
+          'person_id, status, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
+        )
+        .eq('session_id', selectedId)
+        .in('status', ['Absent', 'Excused']),
+      supabase
+        .from('m1_absence_replies')
+        .select('person_id, reason, note, created_at')
+        .eq('session_id', selectedId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('m1_message_log')
+        .select('person_id, sent_at')
+        .eq('class_id', classId)
+        .eq('purpose', 'catch_up')
+        .order('sent_at', { ascending: false }),
+    ])
+      .then(([att, replies, logs]) => {
+        if (cancelled) return;
+        const personOf = (value: unknown): M1Person | null => {
+          if (Array.isArray(value)) return (value[0] as M1Person | undefined) ?? null;
+          return (value as M1Person | null) ?? null;
+        };
+        const replyByPerson = new Map<string, { reason: string; note: string | null; created_at: string }>();
+        for (const r of (replies.data ?? []) as ReplyInfo[]) {
+          if (!replyByPerson.has(r.person_id)) {
+            replyByPerson.set(r.person_id, { reason: r.reason, note: r.note, created_at: r.created_at });
+          }
+        }
+        const sentByPerson = new Map<string, string>();
+        for (const l of (logs.data ?? []) as { person_id: string; sent_at: string }[]) {
+          if (!sentByPerson.has(l.person_id)) sentByPerson.set(l.person_id, l.sent_at);
+        }
+        const built: MissedRow[] = [];
+        for (const row of (att.data ?? []) as { person_id: string; status: string; people: unknown }[]) {
+          const person = personOf(row.people);
+          if (!person) continue;
+          built.push({
+            person,
+            status: row.status,
+            reply: replyByPerson.get(row.person_id) ?? null,
+            sentAt: sentByPerson.get(row.person_id) ?? null,
+          });
+        }
+        built.sort((a, b) => personName(a.person).localeCompare(personName(b.person)));
+        setRows(built);
+      })
+      .catch((err) => toast.error(rlsErrorMessage(err)))
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, classId, selectedId, nonce]);
+
+  useEffect(() => {
+    const ids = sessions.map((s) => s.id);
+    if (ids.length === 0) {
+      setReasonCounts({});
+      setReplyTotal(0);
+      setLatestReply(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('m1_absence_replies')
+      .select('person_id, reason, note, created_at, people(first_name, last_name)')
+      .in('session_id', ids)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const counts: Record<string, number> = {};
+        const list: ReplyInfo[] = [];
+        for (const r of (data ?? []) as {
+          person_id: string;
+          reason: string;
+          note: string | null;
+          created_at: string;
+          people: unknown;
+        }[]) {
+          counts[r.reason] = (counts[r.reason] ?? 0) + 1;
+          const person = Array.isArray(r.people) ? (r.people[0] as M1Person | undefined) : (r.people as M1Person | null);
+          list.push({
+            person_id: r.person_id,
+            reason: r.reason,
+            note: r.note,
+            created_at: r.created_at,
+            name: person ? personName(person) : '',
+          });
+        }
+        setReasonCounts(counts);
+        setReplyTotal(list.length);
+        setLatestReply(list[0] ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, sessions, nonce]);
+
+  const active = useMemo(() => closed.find((s) => s.id === selectedId) ?? null, [closed, selectedId]);
+
+  async function getReplyToken(sessionId: string, personId: string): Promise<string | null> {
+    const { data: existing } = await supabase
+      .from('m1_reply_links')
+      .select('token')
+      .eq('session_id', sessionId)
+      .eq('person_id', personId)
+      .gt('expires_at', new Date().toISOString())
+      .is('used_at', null)
+      .maybeSingle();
+    if (existing?.token) return existing.token;
+    const token = window.crypto.randomUUID().replace(/-/g, '');
+    const { data, error } = await supabase
+      .from('m1_reply_links')
+      .insert({
+        token,
+        session_id: sessionId,
+        person_id: personId,
+        created_by: member?.id ?? null,
+        expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+      })
+      .select('token')
+      .single();
+    if (error) {
+      if (error.code === '23505') {
+        const { data: again } = await supabase
+          .from('m1_reply_links')
+          .select('token')
+          .eq('session_id', sessionId)
+          .eq('person_id', personId)
+          .maybeSingle();
+        return again?.token ?? null;
+      }
+      return null;
+    }
+    return data?.token ?? null;
+  }
+
+  async function sendCatchUp(row: MissedRow) {
+    if (!active) return;
+    setSending(row.person.id);
+    try {
+      const token = await getReplyToken(active.id, row.person.id);
+      let materialsLink = '';
+      const { data: material } = await supabase
+        .from('m1_materials')
+        .select('storage_path')
+        .eq('class_id', classId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (material?.storage_path) {
+        const { data: signed } = await supabase.storage
+          .from(MATERIALS_BUCKET)
+          .createSignedUrl(material.storage_path, 7 * 86_400);
+        materialsLink = signed?.signedUrl ?? '';
+      }
+      const nextDate = sessions.find((s) => s.day_number > active.day_number)?.session_date ?? '';
+      const body = fillTemplate(template, {
+        name: row.person.first_name,
+        class: klass.title,
+        day: String(active.day_number),
+        date: fmtDate(active.session_date),
+        time: fmtTime(active.start_time),
+        summary: active.summary ?? '',
+        materials_link: materialsLink,
+        next_date: nextDate ? fmtDate(nextDate) : '',
+        reply_link: token ? `${window.location.origin}/reply/${token}` : '',
+        venue: venueLabel(klass.venue),
+        volunteer: member?.full_name ?? '',
+      });
+      if (!body) {
+        toast.error('No catch-up message is set up yet.');
+        return;
+      }
+      const channel = pickChannel({
+        phone: row.person.phone,
+        email: row.person.email,
+        contact_preference: row.person.contact_preference,
+      });
+      const href = channel
+        ? messageHref(
+            channel,
+            { phone: row.person.phone, email: row.person.email },
+            { subject: `${klass.title} catch-up`, body }
+          )
+        : null;
+      if (!channel || !href) {
+        toast.error('No phone or email on file for this person.');
+        return;
+      }
+      window.open(href, '_blank', 'noopener');
+      await supabase.from('m1_message_log').insert({
+        class_id: classId,
+        session_id: active.id,
+        person_id: row.person.id,
+        purpose: 'catch_up',
+        channel,
+        sent_by: member?.id ?? null,
+      });
+      toast.success(`Catch-up ready for ${personName(row.person)}`);
+      refresh();
+      onChanged();
+    } finally {
+      setSending(null);
+    }
+  }
 
   if (sessions.length === 0) {
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyMedia variant="icon"><CalendarX2 /></EmptyMedia>
+          <EmptyMedia variant="icon">
+            <CalendarX2 />
+          </EmptyMedia>
           <EmptyTitle>No days recorded</EmptyTitle>
         </EmptyHeader>
         <EmptyContent>
@@ -126,147 +338,305 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
     );
   }
 
-  async function copyReasonLink(person: M1Enrollment['people'], session: M1Session) {
-    setLinking(person.id);
-    const token = window.crypto.randomUUID();
-    const { data, error } = await supabase
-      .from('m1_reply_links')
-      .insert({
-        token,
-        session_id: session.id,
-        person_id: person.id,
-        created_by: member?.id ?? null,
-        expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-      })
-      .select('token')
-      .single();
-    setLinking(null);
-    if (error) {
-      if (error.code === '23505') {
-        toast.info(`${personName(person)} already has a reason link for this day.`);
-        return;
-      }
-      toast.error(rlsErrorMessage(error));
-      return;
-    }
-    const url = `${window.location.origin}/reply/${data.token}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success(`Reason link copied for ${personName(person)}`);
-    } catch {
-      toast.success(`Reason link: ${url}`);
-    }
+  if (closed.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <CalendarX2 />
+          </EmptyMedia>
+          <EmptyTitle>No closed day yet</EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <EmptyDescription>
+            People appear here after a day is closed and someone is not ticked.
+          </EmptyDescription>
+        </EmptyContent>
+      </Empty>
+    );
   }
 
-  const active = selected ?? lastSession;
-  const absenteesThisDay = active ? absent : [];
-
-  function baseValues(person: M1Enrollment['people']) {
-    return {
-      name: template.includes('{name}') ? person.first_name : personName(person),
-      class: klass.title,
-      day: active ? String(active.day_number) : '',
-      date: active ? fmtDate(active.session_date) : '',
-      time: active ? fmtTime(active.start_time) : '',
-      venue: klass.venue || 'ROC Church',
-      volunteer: member?.full_name ?? '',
-    };
-  }
+  const missedSuffix = active ? `${active.day_number}` : '';
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
-        {sessions.map((s) => (
+        {closed.map((s) => (
           <Button
             key={s.id}
             size="sm"
             variant={active?.id === s.id ? 'default' : 'outline'}
             className="h-8 rounded-full"
-            onClick={() => setSelected(s)}
+            onClick={() => setSelectedId(s.id)}
           >
             Day {s.day_number}
           </Button>
         ))}
       </div>
 
-      {absenteesThisDay.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><CalendarX2 /></EmptyMedia>
-            <EmptyTitle>No absences for day {active?.day_number}</EmptyTitle>
-          </EmptyHeader>
-          <EmptyContent>
-            <EmptyDescription>Everyone who missed appears here once the day is closed.</EmptyDescription>
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            Day {active?.day_number} · {fmtDate(active?.session_date ?? '')}
-            {' · '}
-            {absenteesThisDay.length} absent
-          </p>
-          <div className="flex flex-col gap-1.5">
-            {absenteesThisDay.map((row) => (
-              <Item key={row.person.id} variant="outline">
-                <ItemMedia variant="image">
-                  <Avatar size="sm">
-                    <AvatarFallback>{initials(row.person.first_name, row.person.last_name)}</AvatarFallback>
-                  </Avatar>
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle>{personName(row.person)}</ItemTitle>
-                  <ItemDescription className="flex items-center gap-1.5">
-                    {row.reason ? (
-                      <Badge variant="outline">{row.reason}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">No reason yet</span>
-                    )}
-                    {row.status === 'Excused' && <span className="text-muted-foreground">· Excused</span>}
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <Button
-                          size="icon"
-                          variant="outline"
-                          disabled={linking === row.person.id || !active}
-                          onClick={() => active && copyReasonLink(row.person, active)}
-                        >
-                          {linking === row.person.id ? <Spinner className="size-3.5" /> : <Link2 className="size-4" />}
-                        </Button>
-                      }
-                    />
-                    <TooltipContent>Copy a link so they can reply with the reason</TooltipContent>
-                  </Tooltip>
-                  <Button size="sm" variant="outline" disabled={!active} onClick={() => setComposeFor(row.person)}>
-                    <Megaphone className="size-3.5" />
-                    Send catch-up
-                  </Button>
-                </ItemActions>
-              </Item>
-            ))}
-          </div>
-        </>
+      <p className="text-xs text-muted-foreground">
+        {klass.title}
+        {active && ` · ${rows.length} missed Day ${active.day_number}`}
+      </p>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
+        <div className="min-w-0">
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <Spinner />
+            </div>
+          ) : rows.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <CalendarX2 />
+                </EmptyMedia>
+                <EmptyTitle>No absences for Day {missedSuffix}</EmptyTitle>
+              </EmptyHeader>
+              <EmptyContent>
+                <EmptyDescription>Everyone was ticked present on this day.</EmptyDescription>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <div className="overflow-hidden rounded-xl border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">Missed</th>
+                    <th className="hidden px-3 py-2 font-medium sm:table-cell">Phone</th>
+                    <th className="px-3 py-2 font-medium">Status</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.person.id} className="border-b last:border-0">
+                      <td className="px-3 py-2 font-medium">{personName(row.person)}</td>
+                      <td className="px-3 py-2">Day {missedSuffix}</td>
+                      <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">
+                        {row.person.phone || REPLAY_PLACEHOLDER}
+                      </td>
+                      <td className="px-3 py-2">
+                        <MissedStatus row={row} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {row.reply ? (
+                          <Button size="sm" variant="outline" onClick={() => setViewing(row)}>
+                            View reply
+                          </Button>
+                        ) : row.sentAt ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={sending === row.person.id}
+                            onClick={() => sendCatchUp(row)}
+                          >
+                            Resend
+                          </Button>
+                        ) : (
+                          <Button size="sm" disabled={sending === row.person.id} onClick={() => sendCatchUp(row)}>
+                            {sending === row.person.id ? <Spinner className="size-3.5" /> : null}
+                            Send catch-up
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <Card>
+          <CardContent className="flex flex-col gap-2 pt-6">
+            <div>
+              <p className="font-medium">Why people missed</p>
+              <p className="text-xs text-muted-foreground">{replyTotal} replies so far</p>
+            </div>
+            <div className="flex flex-col">
+              {ABSENCE_REASONS.map((reason) => (
+                <div
+                  key={reason}
+                  className="flex items-center justify-between border-t py-1.5 text-sm first:border-t-0"
+                >
+                  <span>{reason}</span>
+                  <span className="tabular-nums font-medium">{reasonCounts[reason] ?? 0}</span>
+                </div>
+              ))}
+            </div>
+            {latestReply && (
+              <div>
+                <p className="mt-2 text-xs font-semibold text-muted-foreground">Latest reply</p>
+                <div className="mt-1 rounded-lg bg-muted p-2.5 text-sm">
+                  {latestReply.note ? `“${latestReply.note}” ` : `${latestReply.reason}. `}
+                  <span className="text-muted-foreground">{latestReply.name}</span>
+                </div>
+              </div>
+            )}
+            <Button variant="outline" size="sm" className="mt-1" onClick={() => setRecording(true)}>
+              Record a reason I heard by phone
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {viewing && viewing.reply && (
+        <Dialog open onOpenChange={(o) => !o && setViewing(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>{personName(viewing.person)}</DialogTitle>
+              <DialogDescription>
+                Day {missedSuffix} · replied {fmtDate(viewing.reply.created_at)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Badge variant="outline">{viewing.reply.reason}</Badge>
+              <p className="text-sm">{viewing.reply.note || 'No extra note.'}</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewing(null)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
-      {composeFor && active && (
-        <ComposeMessageSheet
-          open={!!composeFor}
-          onOpenChange={(o) => setComposeFor(o ? composeFor : null)}
-          person={composeFor}
-          heading="Follow-up"
-          body={template ? fillTemplate(template, baseValues(composeFor)) : ''}
-          purpose="catch_up"
-          classId={klass.id}
-          sessionId={active.id}
-          onLogged={() => {
-            void onChanged;
+      {recording && active && (
+        <RecordReasonDialog
+          klass={klass}
+          session={active}
+          rows={rows}
+          onClose={() => setRecording(false)}
+          onSaved={() => {
+            setRecording(false);
+            refresh();
+            onChanged();
           }}
         />
       )}
     </div>
+  );
+}
+
+function MissedStatus({ row }: { row: MissedRow }) {
+  if (row.reply) {
+    return <Badge className="border-green-500/40 bg-green-500/10 text-green-700">Replied: {row.reply.reason}</Badge>;
+  }
+  if (row.sentAt) {
+    return (
+      <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-700">
+        Message sent {fmtClock(row.sentAt)}
+      </Badge>
+    );
+  }
+  return <Badge className="border-red-500/40 bg-red-500/10 text-red-700">Not contacted</Badge>;
+}
+
+interface RecordReasonDialogProps {
+  klass: M1Class;
+  session: M1Session;
+  rows: MissedRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function RecordReasonDialog({ klass, session, rows, onClose, onSaved }: RecordReasonDialogProps) {
+  const member = useShellMember();
+  const supabase = createClient();
+  const [personId, setPersonId] = useState('');
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const personItems: SelectOption[] = rows.map((r) => ({ value: r.person.id, label: personName(r.person) }));
+  const reasonItems: SelectOption[] = ABSENCE_REASONS.map((r) => ({ value: r, label: r }));
+
+  async function save() {
+    if (!personId || !reason) {
+      toast.error('Pick a person and a reason.');
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from('m1_absence_replies').insert({
+      session_id: session.id,
+      person_id: personId,
+      reason,
+      note: note.trim() || null,
+      source: 'Volunteer',
+      recorded_by: member?.id ?? null,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error(rlsErrorMessage(error));
+      return;
+    }
+    toast.success('Reason recorded');
+    onSaved();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record a reason I heard by phone</DialogTitle>
+          <DialogDescription>
+            {klass.title} · Day {session.day_number} · recorded by you
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label>Person</Label>
+            <Select items={personItems} value={personId || undefined} onValueChange={(v) => setPersonId(v ?? '')}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose a person" />
+              </SelectTrigger>
+              <SelectContent>
+                {personItems.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label>Reason</Label>
+            <Select items={reasonItems} value={reason || undefined} onValueChange={(v) => setReason(v ?? '')}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose a reason" />
+              </SelectTrigger>
+              <SelectContent>
+                {reasonItems.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="reason-note">Note (optional)</Label>
+            <Textarea
+              id="reason-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Anything they told you"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={saving} onClick={save}>
+            {saving ? <Spinner className="size-4" /> : null}
+            Save reason
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

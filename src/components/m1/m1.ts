@@ -50,6 +50,8 @@ export interface M1Enrollment {
   walk_in: boolean;
   status: string;
   certificate_no: string | null;
+  certificate_issued_at?: string | null;
+  certificate_override_note?: string | null;
   people: M1Person;
 }
 
@@ -211,6 +213,7 @@ export interface M1ClassStats {
   enrolled: number;
   waiting: number;
   missed: number;
+  materials: number;
   days: number;
   activeDay: number | null;
   activePresent: number;
@@ -220,11 +223,12 @@ export async function fetchClassStats(
   supabase: SupabaseClient,
   classId: string
 ): Promise<M1ClassStats> {
-  const [sessions, attendanceBySession, enrollments, waiting] = await Promise.all([
+  const [sessions, attendanceBySession, enrollments, waiting, materials] = await Promise.all([
     fetchClassSessions(supabase, classId),
     fetchAttendance(supabase, classId),
     fetchEnrollments(supabase, classId),
     supabase.rpc('m1_waiting_list'),
+    supabase.from('m1_materials').select('id').eq('class_id', classId),
   ]);
   const enrolled = enrollments.filter((e) => e.status === 'Enrolled');
   const enrolledIds = new Set(enrolled.map((e) => e.person_id));
@@ -244,6 +248,7 @@ export async function fetchClassStats(
     enrolled: enrolled.length,
     waiting: Array.isArray(waitingData) ? waitingData.length : 0,
     missed: missed.size,
+    materials: (materials.data ?? []).length,
     days: sessions.length,
     activeDay: activeSession?.day_number ?? null,
     activePresent,
