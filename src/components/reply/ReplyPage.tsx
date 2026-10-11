@@ -36,12 +36,12 @@ export default function ReplyPage() {
       .then(({ data }) => {
         const rows = (data ?? []) as unknown as ReplyContext[];
         if (rows.length === 0) {
-          setError('This link is invalid or has expired.');
+          setError('This link has finished.');
           return;
         }
         setCtx(rows[0]);
         if (rows[0].already_replied) setDone(true);
-      }, () => setError('This link is invalid or has expired.'));
+      }, () => setError('This link has finished.'));
   }, [token, supabase]);
 
   async function submit() {
@@ -64,8 +64,10 @@ export default function ReplyPage() {
     return (
       <Shell>
         <HeartHandshake className="mx-auto size-8 text-muted-foreground" />
-        <h1 className="text-center font-heading text-lg font-semibold">Reply not available</h1>
-        <p className="text-center text-sm text-muted-foreground">{error}</p>
+        <h1 className="text-center font-heading text-lg font-semibold">This link has finished</h1>
+        <p className="text-center text-sm text-muted-foreground">
+          If you still want to tell us something, please speak to your class leader.
+        </p>
       </Shell>
     );
   }
@@ -96,7 +98,7 @@ export default function ReplyPage() {
         Hi {ctx.first_name}, we missed you
       </h1>
       <p className="text-center text-sm text-muted-foreground">
-        Day {ctx.day_number} · {fmtDateFull(ctx.session_date)}
+        M1 Class · Day {ctx.day_number} · {fmtDateFull(ctx.session_date)}
       </p>
 
       {ctx.summary && (
@@ -107,7 +109,7 @@ export default function ReplyPage() {
 
       <div className="space-y-3">
         <div className="space-y-1.5">
-          <Label>What kept you away?</Label>
+          <Label>Is there something that kept you away? Only if you would like to share.</Label>
           <div className="flex flex-wrap gap-1.5">
             {ABSENCE_REASONS.map((r) => (
               <Button
@@ -136,7 +138,7 @@ export default function ReplyPage() {
 
         <Button className="w-full" disabled={!reason || sending} onClick={submit}>
           {sending ? <Spinner className="size-4" /> : null}
-          Send reply
+          Send
         </Button>
       </div>
 
