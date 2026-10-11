@@ -153,10 +153,10 @@ export default function M1Page() {
 
           {klass && supportsTabs ? (
             <Tabs value={tab} onValueChange={(v) => setTab((v ?? 'enrolled') as TabKey)}>
-              <TabsList className="w-full overflow-x-auto sm:w-fit">
+              <TabsList className="h-auto! w-full flex-wrap justify-start gap-1 group-data-horizontal/tabs:h-auto! [&_[data-slot=tabs-trigger]]:h-8 sm:w-fit">
                 <TabsTrigger value="enrolled">Enrolled</TabsTrigger>
                 <TabsTrigger value="needs">Needs M1</TabsTrigger>
-                <TabsTrigger value="missed">Missed a day</TabsTrigger>
+                <TabsTrigger value="missed">Missed</TabsTrigger>
                 <TabsTrigger value="materials">Materials</TabsTrigger>
                 <TabsTrigger value="certificates">Certificates</TabsTrigger>
               </TabsList>
