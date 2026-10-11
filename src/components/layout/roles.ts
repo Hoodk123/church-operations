@@ -12,10 +12,27 @@ export function landingPath(role: string | null | undefined): string {
 
 /** Paths each role may open. Kept in sync with the sidebar in nav.ts. */
 const ALLOWED_PATHS: Record<string, string[]> = {
-  Admin: ['/home', '/check-in', '/dashboard', '/my-followups', '/board', '/needs-attention'],
-  'Info Desk': ['/check-in', '/dashboard'],
-  'Follow-up Coordinator': ['/my-followups', '/board', '/dashboard'],
-  Pastor: ['/my-followups', '/board'],
+  Admin: [
+    '/home',
+    '/check-in',
+    '/dashboard',
+    '/my-followups',
+    '/board',
+    '/needs-attention',
+    '/m1',
+    '/m1/certificates/print',
+    '/baptism',
+  ],
+  'Info Desk': ['/check-in', '/dashboard', '/m1'],
+  'Follow-up Coordinator': [
+    '/my-followups',
+    '/board',
+    '/dashboard',
+    '/m1',
+    '/m1/certificates/print',
+    '/baptism',
+  ],
+  Pastor: ['/my-followups', '/board', '/m1', '/m1/certificates/print', '/baptism'],
 };
 
 export function canAccess(role: string | null | undefined, path: string): boolean {

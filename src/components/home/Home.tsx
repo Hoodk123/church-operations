@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowRight, UserCheck, UserPlus, Phone, Clock, GraduationCap, CalendarCheck } from 'lucide-react';
+import { ArrowRight, UserCheck, UserPlus, Phone, Clock, GraduationCap, Droplets, CalendarCheck } from 'lucide-react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince } from '@/lib/dates';
 import { cn } from '@/lib/utils';
 import PageHeader from '@/components/layout/PageHeader';
+import { useShellMember } from '@/components/layout/shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,6 +36,8 @@ interface Counts {
   visitorsWeek: number;
   convertsWeek: number;
   contactedWeek: number;
+  waitingM1: number;
+  needBaptism: number;
 }
 
 const GONE_QUIET = ['Contacted', 'Met', 'Ongoing'];
@@ -95,12 +98,23 @@ function fetchCounts(supabase: SupabaseClient): Promise<Counts> {
       .eq('category', 'New Convert')
       .gte('date_registered', weekStart),
     supabase.from('contact_log').select('*', head).gte('contacted_at', weekStart),
-  ]).then(([todayRes, sundayRes, visitorsRes, convertsRes, contactedRes]) => ({
+    supabase
+      .from('people')
+      .select('*', head)
+      .eq('needs_m1', true),
+    supabase
+      .from('people')
+      .select('*', head)
+      .eq('needs_baptism', true)
+      .neq('baptism_status', 'Baptized'),
+  ]).then(([todayRes, sundayRes, visitorsRes, convertsRes, contactedRes, m1Res, baptismRes]) => ({
     attendanceToday: todayRes.count ?? 0,
     attendanceLastSunday: sundayRes.count ?? 0,
     visitorsWeek: visitorsRes.count ?? 0,
     convertsWeek: convertsRes.count ?? 0,
     contactedWeek: contactedRes.count ?? 0,
+    waitingM1: m1Res.count ?? 0,
+    needBaptism: baptismRes.count ?? 0,
   }));
 }
 
@@ -119,6 +133,8 @@ async function fetchVolunteers(
 
 export default function Home() {
   const supabase = createClient();
+  const member = useShellMember();
+  const isAdmin = member?.role === 'Admin';
   const [people, setPeople] = useState<HomePerson[] | null>(null);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [volunteers, setVolunteers] = useState<VolunteerWeek[] | null>(null);
@@ -196,7 +212,7 @@ export default function Home() {
       <div className="flex flex-col gap-4">
         <PageHeader />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 7 }).map((_, i) => (
             <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
@@ -239,10 +255,18 @@ export default function Home() {
       href: '/needs-attention',
     },
     {
-      label: 'M1 class in progress',
-      value: '—',
-      sub: 'Coming soon',
+      label: 'Waiting for M1',
+      value: counts.waitingM1,
+      sub: 'Open the M1 class',
       icon: GraduationCap,
+      href: '/m1',
+    },
+    {
+      label: 'Need baptism',
+      value: counts.needBaptism,
+      sub: 'Open the baptism list',
+      icon: Droplets,
+      href: '/baptism',
     },
     {
       label: 'Contacted this week',
@@ -257,13 +281,15 @@ export default function Home() {
       <PageHeader />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {tiles.map((tile) => {
+        {tiles
+          .filter((tile) => isAdmin || (tile.href !== '/m1' && tile.href !== '/baptism'))
+          .map((tile) => {
           const inner = (
             <Card
               className={cn(
                 'h-full',
                 tile.href && 'transition-colors hover:bg-accent/50',
-                tile.href && derived.overdueCount > 0 && 'border-destructive/60'
+                tile.href === '/needs-attention' && derived.overdueCount > 0 && 'border-destructive/60'
               )}
             >
               <CardContent className="flex flex-col gap-1 pt-6">

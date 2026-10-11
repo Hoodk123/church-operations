@@ -8,7 +8,7 @@ export default function BottomNav({ role }: { role: string }) {
   if (items.length === 0) return null;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden print:hidden">
       {items.map((item) => (
         <NavLink
           key={item.href}

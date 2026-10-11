@@ -13,6 +13,10 @@ import NeedsAttentionPage from '@/components/attention/NeedsAttentionPage';
 import Home from '@/components/home/Home';
 import Landing from '@/components/layout/Landing';
 import RoleGate from '@/components/layout/RoleGate';
+import M1Page from '@/components/m1/M1Page';
+import CertificatePrintPage from '@/components/m1/CertificatePrintPage';
+import BaptismPage from '@/components/baptism/BaptismPage';
+import ReplyPage from '@/components/reply/ReplyPage';
 
 function ProtectedRoute() {
   const [checking, setChecking] = useState(true);
@@ -69,6 +73,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginForm />} />
+        <Route path="/reply/:token" element={<ReplyPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route index element={<Landing />} />
@@ -79,6 +84,12 @@ export default function App() {
               <Route path="/my-followups" element={<MyFollowupsPage />} />
               <Route path="/board" element={<BoardPage />} />
               <Route path="/needs-attention" element={<NeedsAttentionPage />} />
+              <Route path="/m1" element={<M1Page />} />
+              <Route
+                path="/m1/certificates/print"
+                element={<CertificatePrintPage />}
+              />
+              <Route path="/baptism" element={<BaptismPage />} />
             </Route>
           </Route>
         </Route>

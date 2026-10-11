@@ -111,6 +111,29 @@ All data is stored in **Supabase** (PostgreSQL) with **Row Level Security (RLS)*
 - Navbar with avatar (initials + role badge), last updated text, activity drawer toggle, logout
 - Responsive design — table collapses to 3 essential columns on narrow viewports
 
+### M1 Class & Baptism (Task 06)
+- **M1 Class** (`/m1`): class selector, four stat tiles, and tabs for Enrolled,
+  Needs M1, Missed, Materials, and Certificates (Info Desk sees only Enrolled and
+  Needs M1). Per-day attendance with present/absent marking, day closing, and
+  progress bars; a person sheet with contact actions, attendance strip, and a
+  message template picker.
+- **Add to class**: enrol from the waiting list or register a walk-in (with
+  duplicate-phone guard and optional "present today").
+- **Send reminders** and **catch-up** messages log to `m1_message_log`; missed-day
+  replies use a private `/reply/:token` link (no login) backed by
+  `get_reply_context` / `submit_absence_reply`.
+- **Materials**: upload to the `m1-materials` storage bucket and share signed links.
+- **Certificates**: issue numbers to eligible people and print them at
+  `/m1/certificates/print`.
+- **Baptism** (`/baptism`): upcoming services, candidate list from
+  `baptism_candidates()`, registration, and reminders.
+- **People**: new email, address details, preferred-contact, and "needs M1 /
+  needs baptism" fields, plus filters and an enrolled-class badge.
+- **Home**: "Waiting for M1" and "Need baptism" tiles for admins.
+
+Role gating follows `is_class_staff()` / `is_class_leader()` in the database;
+sidebar items a role cannot use are hidden, not disabled.
+
 ## Database schema
 
 ### `team_members`

@@ -1,0 +1,533 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>M1 and Baptism Screens</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: three build-first screens, each a phone (or desktop) mockup beside the shadcn parts it uses. Tokens mirror the app's neutral base-nova look. */
+:root{
+  --bg:#fafafa; --fg:#171717; --muted:#737373; --card:#ffffff; --border:#e5e5e5; --accent:#f4f4f5;
+  --primary:#171717; --primary-fg:#fafafa; --frame:#e9e9eb; --ring:#a1a1aa;
+  --blue-bg:#dbeafe; --blue-fg:#1e40af; --teal-bg:#ccfbf1; --teal-fg:#115e59;
+  --amber-bg:#fef3c7; --amber-fg:#92400e; --purple-bg:#ede9fe; --purple-fg:#5b21b6;
+  --pink-bg:#fce7f3; --pink-fg:#9d174d; --red-bg:#fee2e2; --red-fg:#991b1b;
+  --green-bg:#dcfce7; --green-fg:#166534; --gray-bg:#f4f4f5; --gray-fg:#3f3f46;
+  --dot-green:#22c55e; --dot-amber:#f59e0b; --dot-red:#ef4444;
+  --sans:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"Geist Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a0a0a; --fg:#fafafa; --muted:#a3a3a3; --card:#171717; --border:#2b2b2b; --accent:#262626;
+  --primary:#fafafa; --primary-fg:#171717; --frame:#121212; --ring:#71717a;
+  --blue-bg:#1e3a8a66; --blue-fg:#93c5fd; --teal-bg:#134e4a66; --teal-fg:#5eead4;
+  --amber-bg:#78350f66; --amber-fg:#fcd34d; --purple-bg:#4c1d9566; --purple-fg:#c4b5fd;
+  --pink-bg:#83184366; --pink-fg:#f9a8d4; --red-bg:#7f1d1d66; --red-fg:#fca5a5;
+  --green-bg:#14532d66; --green-fg:#86efac; --gray-bg:#27272a; --gray-fg:#d4d4d8; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;padding-inline:16px;padding-block:40px 72px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:72px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.1;letter-spacing:-.02em;margin:0 0 12px;text-wrap:balance}
+h2{font-size:22px;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.sec{display:flex;flex-direction:column;gap:24px}
+.sec-head{max-width:64ch}
+.stage{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.note{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.note h3{font-size:14px;margin:0;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--card)}
+.chip.add{border-style:dashed;color:var(--muted)}
+.legend{font-size:13px;color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:999px;border:1px solid var(--ring);margin-right:6px;vertical-align:-1px}
+.legend .l1::before{background:var(--fg);border-color:var(--fg)}
+.legend .l2::before{border-style:dashed}
+ul.tips{margin:0;padding-left:18px;color:var(--muted);font-size:14px;display:flex;flex-direction:column;gap:6px}
+/* mockups */
+.phone{width:340px;max-width:100%;flex:0 0 auto;background:var(--frame);border:1px solid var(--border);border-radius:34px;padding:10px}
+.screen{background:var(--bg);border-radius:26px;border:1px solid var(--border);height:640px;display:flex;flex-direction:column;overflow:hidden;position:relative}
+.appbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 10px}
+.appbar b{font-size:17px;letter-spacing:-.01em}
+.sub{font-size:12px;color:var(--muted)}
+.body{flex:1;min-height:0;padding:4px 16px 12px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.igroup{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--muted);font-size:15px}
+.igroup .t{color:var(--fg)}
+.caret{display:inline-block;width:1px;height:18px;background:var(--fg);margin-left:1px;vertical-align:-4px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px}
+.item{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.item .main{flex:1;min-width:0}
+.item .nm{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden}
+.av{width:34px;height:34px;border-radius:999px;background:var(--accent);display:grid;place-items:center;font-size:12px;font-weight:600;flex:0 0 auto}
+.av.sm{width:22px;height:22px;font-size:10px}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;line-height:1;padding:4px 8px;border-radius:999px;white-space:nowrap}
+.b-blue{background:var(--blue-bg);color:var(--blue-fg)}.b-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.b-amber{background:var(--amber-bg);color:var(--amber-fg)}.b-purple{background:var(--purple-bg);color:var(--purple-fg)}
+.b-pink{background:var(--pink-bg);color:var(--pink-fg)}.b-red{background:var(--red-bg);color:var(--red-fg)}
+.b-green{background:var(--green-bg);color:var(--green-fg)}.b-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:10px;font:500 14px var(--sans);border:1px solid transparent;background:var(--primary);color:var(--primary-fg);white-space:nowrap}
+.btn.out{background:var(--card);color:var(--fg);border-color:var(--border)}
+.btn.lg{height:48px;font-size:15px;width:100%}
+.btn.sm{height:30px;padding:0 10px;font-size:13px;border-radius:8px}
+.btn.grow{flex:1}
+.toast{position:absolute;left:16px;right:16px;bottom:78px;background:var(--primary);color:var(--primary-fg);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;gap:10px;align-items:center}
+.nav{display:flex;border-top:1px solid var(--border);background:var(--card);padding:6px 6px 10px}
+.nav div{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);padding:6px 0;border-radius:8px}
+.nav .on{color:var(--fg);background:var(--accent);font-weight:500}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+.drawer{position:absolute;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--border);border-radius:22px 22px 0 0;padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--border);margin:0 auto 4px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:500}
+.field .in{height:40px;border:1px solid var(--border);border-radius:10px;background:var(--card);display:flex;align-items:center;padding:0 12px;font-size:14px;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tg{display:flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+.tg div{flex:1;text-align:center;font-size:13px;padding:9px 0;border-left:1px solid var(--border)}
+.tg div:first-child{border-left:0}
+.tg .on{background:var(--accent);font-weight:600}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);font-size:14px}
+.switch{width:38px;height:22px;border-radius:99px;background:var(--primary);position:relative;flex:0 0 auto}
+.switch::after{content:"";position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:99px;background:var(--primary-fg)}
+.dot{width:8px;height:8px;border-radius:99px;display:inline-block;flex:0 0 auto}
+.dg{background:var(--dot-green)}.da{background:var(--dot-amber)}.dr{background:var(--dot-red)}
+.fu{display:flex;flex-direction:column;gap:10px}
+.fu .top{display:flex;gap:10px;align-items:flex-start}
+.fu .acts{display:flex;gap:8px}
+.warn{color:var(--amber-fg);font-weight:500}
+/* board */
+.desk{flex:1 1 100%;min-width:0;background:var(--frame);border:1px solid var(--border);border-radius:16px;padding:10px}
+.deskin{background:var(--bg);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.bar .logo{width:22px;height:22px;border-radius:6px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;font-size:10px;font-weight:700}
+.filters{display:flex;gap:8px;flex-wrap:wrap;padding:12px 14px}
+.sel{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:13px}
+.scroll{overflow-x:auto;padding:0 14px 16px}
+.cols{display:grid;grid-template-columns:repeat(5,236px);gap:12px;min-width:max-content}
+.col{background:var(--accent);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:330px}
+.colh{display:flex;align-items:center;justify-content:space-between;padding:2px 2px 4px}
+.colh .cnt{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.kc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;position:relative}
+.kc .r{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.kc .nm{font-weight:500;font-size:14px}
+.kc.lift{outline:2px solid var(--ring);outline-offset:1px}
+.menu{position:absolute;right:8px;top:34px;z-index:2;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:4px;width:150px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.menu div{padding:6px 8px;border-radius:6px}.menu .h{color:var(--muted);font-size:11px;padding-bottom:2px}
+.menu .on{background:var(--accent)}
+.drop{border:1.5px dashed var(--ring);border-radius:12px;height:54px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+/* parts table */
+.tw{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:0}
+code{font-family:var(--mono);font-size:13px}
+pre{margin:0;overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;font:13px/1.6 var(--mono)}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+<symbol id="i-cols" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+</svg>
+
+<style>
+/* admin-panel additions */
+.sc{overflow-x:auto;border-radius:10px}
+.app{display:grid;grid-template-columns:168px 1fr;min-width:940px}
+.sb{border-right:1px solid var(--border);padding:10px 8px;display:flex;flex-direction:column;gap:2px;font-size:13px;background:var(--bg)}
+.sb div{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--muted)}
+.sb .on{background:var(--accent);color:var(--fg);font-weight:500}
+.sb .grp{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:12px 9px 4px;color:var(--muted)}
+.mn{padding:18px 20px 22px;min-width:0;position:relative}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.ph .h{font-size:20px;letter-spacing:-.01em}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:16px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:10px;min-width:0}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px;margin-top:6px}
+.lbl .n{font-family:var(--mono);font-weight:400}
+.big{font-size:34px;line-height:1;font-weight:600;letter-spacing:-.02em}
+.cnt4{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.cnt4 div{background:var(--accent);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--muted)}
+.cnt4 b{display:block;font-size:18px;color:var(--fg);font-weight:600}
+.feed{display:flex;flex-direction:column;margin-top:6px}
+.feed div{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.feed span.t{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.qk{display:flex;flex-wrap:wrap;gap:6px}
+.qk span{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);font-size:13px}
+.cg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tag{font-size:11px;color:var(--blue-fg);background:var(--blue-bg);padding:3px 8px;border-radius:999px;width:fit-content}
+.prog{height:6px;border-radius:99px;background:var(--accent);overflow:hidden;width:150px}
+.prog i{display:block;height:100%;width:38%;background:var(--primary)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;background:var(--card);overflow:hidden;font-size:13px}
+.seg div{padding:6px 14px;border-left:1px solid var(--border)}.seg div:first-child{border-left:0}.seg .on{background:var(--accent);font-weight:600}
+.msg{background:var(--accent);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.55}
+.col-tbl{width:100%;min-width:0;font-size:13px}
+.col-tbl th{font-size:11px}
+.col-tbl tr.sel td{background:var(--accent)}
+.sheet{position:absolute;top:0;right:0;bottom:0;width:340px;background:var(--bg);border-left:1px solid var(--border);padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:-12px 0 32px rgba(0,0,0,.14)}
+.dimm{position:absolute;inset:0;background:rgba(0,0,0,.28)}
+.vrow{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--card);display:flex;flex-direction:column;gap:6px;font-size:13px}
+.vrow .a{font-size:12px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted)}
+.tile .v{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.2}
+.tile .d{font-size:12px;color:var(--muted)}
+.tile.hot{border-color:var(--dot-red)}
+.bulk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border:1px solid var(--border);border-radius:12px;background:var(--accent);font-size:13px}
+.arow{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:var(--card);font-size:13px}
+.arow .grow{flex:1;min-width:0}
+.cb{width:16px;height:16px;border:1px solid var(--ring);border-radius:4px;flex:0 0 auto;display:grid;place-items:center}
+.cb.on{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.fly{box-shadow:0 18px 40px rgba(0,0,0,.28);transform:rotate(2.5deg);position:absolute;width:210px;z-index:3;background:var(--card)}
+.ghost{border:1.5px dashed var(--ring);border-radius:12px;padding:10px 12px;color:var(--muted);font-size:13px;opacity:.8}
+.overcol{outline:2px solid var(--ring);outline-offset:-2px;background:var(--bg)}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.rules .card b{display:block;margin-bottom:4px;font-size:14px}
+.rules .card p{font-size:13px;color:var(--muted)}
+</style>
+
+<style>
+/* M1 and Baptism additions */
+.ck{width:18px;height:18px;border:1.5px solid var(--ring);border-radius:5px;display:inline-grid;place-items:center;vertical-align:middle}
+.ck.on{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.ck.no{border-color:var(--dot-red);color:var(--dot-red)}
+.ck.na{opacity:.35;border-style:dashed}
+.ck .i{width:12px;height:12px;stroke-width:3}
+.dayh{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.25}
+.dayh small{font-family:var(--sans);font-size:11px;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400}
+td.c,th.c{text-align:center}
+td.tc{background:var(--accent)}
+.pbar{display:inline-block;width:44px;height:6px;border-radius:99px;background:var(--accent);overflow:hidden;vertical-align:middle;margin-left:6px}
+.pbar i{display:block;height:100%;background:var(--primary)}
+.pops{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.pop{width:340px;max-width:100%;border:1px solid var(--border);border-radius:16px;background:var(--bg);padding:16px;display:flex;flex-direction:column;gap:10px}
+.pop .ttl{font-size:16px;font-weight:600}
+.cert{border:2px solid var(--fg);outline:1px solid var(--border);outline-offset:-8px;border-radius:6px;padding:26px 20px 18px;text-align:center;background:var(--card);display:flex;flex-direction:column;gap:6px}
+.cert .t{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.cert .n{font-size:24px;font-weight:600;letter-spacing:-.01em;line-height:1.2}
+.cert p{font-size:13px;color:var(--muted)}
+.sig{display:flex;justify-content:space-between;gap:16px;margin-top:16px;font-size:11px;color:var(--muted)}
+.sig div{flex:1;border-top:1px solid var(--ring);padding-top:4px}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flow .st{padding:7px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);font-size:13px}
+.flow .st.warn2{background:var(--amber-bg);color:var(--amber-fg);border-color:transparent}
+.flow .st.ok{background:var(--green-bg);color:var(--green-fg);border-color:transparent}
+.flow .ar{color:var(--muted)}
+.drz{border:1.5px dashed var(--ring);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.fileic{width:34px;height:34px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:var(--muted);flex:0 0 auto}
+.two-c{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.reason{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-top:1px solid var(--border)}
+.chipsel{display:flex;gap:6px;flex-wrap:wrap}
+.chipsel span{padding:8px 13px;border:1px solid var(--border);border-radius:999px;font-size:13px;background:var(--card)}
+.chipsel .on{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.status2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:700px){.status2{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="kicker">Church Operations · classes</div>
+  <h1>M1 Class and Baptism Screens</h1>
+  <p class="lead">How the M1 class (three days) and baptism would work inside the system you already have. People who need M1 and people who need baptism sit in separate lists, each on its own page. Names, numbers and dates below are examples.</p>
+</header>
+
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">For the presentation</div>
+    <h2>What works today, and what this adds</h2>
+  </div>
+  <div class="status2">
+    <div class="card"><b>Working now</b>
+      <ul class="tips" style="margin-top:8px"><li>Register people with category, M1 status, HBF group and baptism status</li><li>Sort, filter and group the people list</li><li>Check-in, follow-ups with call and WhatsApp, and the follow-up board (being polished)</li><li>Roles: Admin, Info Desk, Follow-up Coordinator, Pastor</li></ul></div>
+    <div class="card"><b>Next, shown on this page</b>
+      <ul class="tips" style="margin-top:8px"><li>An M1 Class page with Day 1, 2, 3 attendance ticks</li><li>Register people who show up on class day</li><li>Reminders before class and catch-up messages after a missed day</li><li>A reply link so absent people can tell us why</li><li>Shared study materials, certificates, and a Baptism page</li></ul></div>
+  </div>
+</section>
+
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">The journey</div>
+    <h2>From "needs M1" to certificate and baptism</h2>
+  </div>
+  <div class="flow">
+    <span class="st">Needs M1</span><span class="ar">→</span><span class="st">Enrolled</span><span class="ar">→</span><span class="st">Day 1</span><span class="ar">→</span><span class="st">Day 2</span><span class="ar">→</span><span class="st">Day 3</span><span class="ar">→</span><span class="st ok">Completed</span><span class="ar">→</span><span class="st ok">Certificate</span><span class="ar">→</span><span class="st">Needs baptism</span><span class="ar">→</span><span class="st">Baptism date</span><span class="ar">→</span><span class="st ok">Baptized</span>
+  </div>
+  <div class="flow">
+    <span class="st warn2">Missed a day</span><span class="ar">→</span><span class="st warn2">Catch-up message with notes and link</span><span class="ar">→</span><span class="st warn2">They tell us why</span><span class="ar">→</span><span class="st">Back in class</span>
+  </div>
+</section>
+
+<!-- M1 PAGE -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Page 1 · M1 Class</div>
+    <h2>Enrolled people and the three ticks</h2>
+    <p class="lead">One row per person, with their phone and address. Day 1, 2 and 3 are columns you tick when the person is there. Today's column is highlighted and editable, past days are locked, and future days wait. Click a name to open their details.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div><div class="grp">Classes</div><div class="on"><svg class="i"><use href="#i-award"/></svg>M1 Class</div><div><svg class="i"><use href="#i-cal"/></svg>Baptism</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">M1 Class</b><div class="sub"><span class="sel" style="height:26px;padding:0 8px;font-size:12px">October class<svg class="i" style="width:12px;height:12px;color:var(--muted)"><use href="#i-down"/></svg></span> &nbsp;3 days · Kagugu hall</div></div><div style="display:flex;gap:8px"><span class="btn out"><svg class="i"><use href="#i-msg"/></svg>Send reminders</span><span class="btn"><svg class="i"><use href="#i-plus"/></svg>Add</span></div></div>
+      <div class="tiles" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+        <div class="tile"><div class="k">Enrolled</div><div class="v">14</div></div>
+        <div class="tile"><div class="k">Here today (Day 2)</div><div class="v">9</div></div>
+        <div class="tile"><div class="k">Waiting for a class</div><div class="v">9</div></div>
+        <div class="tile"><div class="k">Missed a day</div><div class="v">3</div></div>
+      </div>
+      <div class="seg" style="margin-bottom:12px"><div class="on">Enrolled 14</div><div>Needs M1 9</div><div>Missed 3</div><div>Materials 4</div><div>Certificates</div></div>
+      <div class="tw" style="min-width:0"><table class="col-tbl">
+        <thead><tr><th>Name</th><th>Phone</th><th>Address</th>
+          <th class="c"><div class="dayh">Day 1<small>12 Oct · closed</small></div></th>
+          <th class="c" style="background:var(--accent)"><div class="dayh">Day 2<small>Today</small></div></th>
+          <th class="c"><div class="dayh">Day 3<small>26 Oct</small></div></th><th>Progress</th></tr></thead>
+        <tbody>
+          <tr><td><b>Aline Uwase</b></td><td>0788 000 101</td><td>Kinyinya, Kagugu</td><td class="c"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c tc"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c"><span class="ck na"></span></td><td>2/3<span class="pbar"><i style="width:66%"></i></span></td></tr>
+          <tr><td><b>Eric Mugisha</b></td><td>0788 000 102</td><td>Gisozi, Kanyinya</td><td class="c"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c tc"><span class="ck"></span></td><td class="c"><span class="ck na"></span></td><td>1/3<span class="pbar"><i style="width:33%"></i></span></td></tr>
+          <tr><td><b>Grace Ineza</b></td><td>0788 000 103</td><td>Kagugu, Rukingu</td><td class="c"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c tc"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c"><span class="ck na"></span></td><td>2/3<span class="pbar"><i style="width:66%"></i></span></td></tr>
+          <tr><td><b>Divine Keza</b> <span class="badge b-red" style="margin-left:6px">Missed Day 1</span></td><td>0788 000 104</td><td>Kicukiro, Karembure</td><td class="c"><span class="ck no"><svg class="i"><use href="#i-x"/></svg></span></td><td class="c tc"><span class="ck"></span></td><td class="c"><span class="ck na"></span></td><td>0/3<span class="pbar"><i style="width:0%"></i></span></td></tr>
+          <tr><td><b>Patrick Habimana</b></td><td>0788 000 105</td><td>Kinyinya</td><td class="c"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c tc"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c"><span class="ck na"></span></td><td>2/3<span class="pbar"><i style="width:66%"></i></span></td></tr>
+          <tr><td><b>Gloria Nyirahabimana</b> <span class="badge b-blue" style="margin-left:6px">Walk-in today</span></td><td>0788 000 106</td><td>Kagugu</td><td class="c"><span class="ck na"></span></td><td class="c tc"><span class="ck on"><svg class="i"><use href="#i-check"/></svg></span></td><td class="c"><span class="ck na"></span></td><td>1/3<span class="pbar"><i style="width:33%"></i></span></td></tr>
+        </tbody></table></div>
+      <div class="sub" style="margin-top:10px">At the end of the day a leader presses "Close Day 2". Anyone not ticked becomes Absent and appears under Missed.</div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- POPUPS -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Pop-ups on the same page</div>
+    <h2>Person details, walk-ins, and reminders</h2>
+    <p class="lead">Clicking a person, pressing Add, or pressing Send reminders opens a panel on the side. Nobody leaves the class page.</p>
+  </div>
+  <div class="pops">
+    <div class="pop">
+      <div style="display:flex;justify-content:space-between"><div><div class="ttl">Eric Mugisha</div><div class="sub">Enrolled · October class · 1 of 3 days</div></div><svg class="i" style="color:var(--muted)"><use href="#i-x"/></svg></div>
+      <div class="vrow"><div><b>0788 000 102</b></div><div class="a">Gisozi, Kanyinya · near the pharmacy</div><div class="a">Prefers WhatsApp</div></div>
+      <div style="display:flex;gap:8px"><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-phone"/></svg>Call</span><span class="btn out sm grow"><svg class="i" style="width:14px;height:14px"><use href="#i-msg"/></svg>WhatsApp</span><span class="btn out sm grow" style="opacity:.5"><svg class="i" style="width:14px;height:14px"><use href="#i-mail"/></svg>No email</span></div>
+      <div class="lbl" style="margin-top:2px">Attendance</div>
+      <div class="flow"><span class="st ok">Day 1 · here</span><span class="st">Day 2 · not ticked</span><span class="st" style="opacity:.5">Day 3</span></div>
+      <div class="lbl">Send a message</div>
+      <div class="sel" style="justify-content:space-between">Class reminder<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="msg">Hello <b>Eric</b>, a reminder that M1 Class Day 3 is on Sunday 26 Oct at 9:00, Kagugu hall. We look forward to seeing you. From Rahman.</div>
+      <div class="sub">Last message: Rahman reminded you on 11 Oct (WhatsApp)</div>
+    </div>
+
+    <div class="pop">
+      <div style="display:flex;justify-content:space-between"><div class="ttl">Add to M1 Class</div><svg class="i" style="color:var(--muted)"><use href="#i-x"/></svg></div>
+      <div class="seg" style="align-self:flex-start"><div>Find existing</div><div class="on">New person</div></div>
+      <div class="two"><div class="field"><label>First name</label><div class="in">Claudine</div></div><div class="field"><label>Last name</label><div class="in">Mukeshimana</div></div></div>
+      <div class="field"><label>Phone</label><div class="in"><span class="sub">+250</span>788 000 107</div></div>
+      <div class="field"><label>Where do they live?</label><div class="in"><svg class="i" style="color:var(--muted)"><use href="#i-pin"/></svg>Kagugu, Rukingu</div></div>
+      <div class="two"><div class="field"><label>Gender</label><div class="tg"><div>Male</div><div class="on">Female</div></div></div><div class="field"><label>Age group</label><div class="tg"><div class="on">Adult</div><div>Youth</div></div></div></div>
+      <div class="field"><label>How should we contact them?</label><div class="tg"><div class="on">WhatsApp</div><div>Email</div><div>SMS</div><div>Call</div></div></div>
+      <div class="sw"><span>Mark present for Day 2 now</span><span class="switch"></span></div>
+      <div style="display:flex;gap:8px"><span class="btn out grow lg" style="width:auto">Cancel</span><span class="btn grow lg" style="width:auto">Save and enrol</span></div>
+    </div>
+
+    <div class="pop">
+      <div style="display:flex;justify-content:space-between"><div><div class="ttl">Send reminders</div><div class="sub">Day 3 · Sun 26 Oct, 9:00</div></div><svg class="i" style="color:var(--muted)"><use href="#i-x"/></svg></div>
+      <div class="sel" style="justify-content:space-between">Class reminder<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></div>
+      <div class="item"><div class="main"><div class="nm">Aline Uwase</div><div class="meta">WhatsApp</div></div><span class="badge b-green">Sent</span></div>
+      <div class="item"><div class="main"><div class="nm">Eric Mugisha</div><div class="meta">WhatsApp</div></div><span class="btn sm">Send</span></div>
+      <div class="item"><div class="main"><div class="nm">Grace Ineza</div><div class="meta">Email</div></div><span class="btn sm">Send</span></div>
+      <div class="item"><div class="main"><div class="nm">Divine Keza</div><div class="meta">SMS</div></div><span class="btn sm">Send</span></div>
+      <div class="sub">WhatsApp opens one chat at a time with the message ready. Press send there, then come back and tap the next name.</div>
+    </div>
+  </div>
+</section>
+
+<!-- MISSED -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Page 1 · Missed tab</div>
+    <h2>Catch-up for people who missed a day</h2>
+    <p class="lead">Anyone marked Absent when a day is closed lands here. One tap sends a warm message with what was studied, the notes, and a private link where they can tell us what kept them away. Their answers come straight back into the system.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div><div class="grp">Classes</div><div class="on"><svg class="i"><use href="#i-award"/></svg>M1 Class</div><div><svg class="i"><use href="#i-cal"/></svg>Baptism</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">M1 Class</b><div class="sub">October class · 3 missed Day 1</div></div></div>
+      <div class="seg" style="margin-bottom:12px"><div>Enrolled 14</div><div>Needs M1 9</div><div class="on">Missed 3</div><div>Materials 4</div><div>Certificates</div></div>
+      <div class="two-c">
+        <div class="tw" style="min-width:0"><table class="col-tbl">
+          <thead><tr><th>Name</th><th>Missed</th><th>Phone</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>Divine Keza</b></td><td>Day 1</td><td>0788 000 104</td><td><span class="badge b-green">Replied: Work</span></td><td><span class="btn out sm">View reply</span></td></tr>
+            <tr><td><b>Samuel Ndayisaba</b></td><td>Day 1</td><td>0788 000 108</td><td><span class="badge b-amber">Message sent 10:12</span></td><td><span class="btn out sm">Resend</span></td></tr>
+            <tr><td><b>Claudine Mukeshimana</b></td><td>Day 1</td><td>0788 000 107</td><td><span class="badge b-red">Not contacted</span></td><td><span class="btn sm">Send catch-up</span></td></tr>
+          </tbody></table></div>
+        <div class="card">
+          <b>Why people missed</b><div class="sub">5 replies so far</div>
+          <div class="reason"><span>Work</span><b>2</b></div><div class="reason"><span>Sick</span><b>1</b></div><div class="reason"><span>Transport</span><b>1</b></div><div class="reason"><span>Family</span><b>1</b></div>
+          <div class="lbl" style="margin-top:10px">Latest reply</div>
+          <div class="msg">"I work on Sundays until noon. Can I join the afternoon?" <span class="sub">Divine Keza</span></div>
+          <span class="btn out sm" style="margin-top:6px">Record a reason I heard by phone</span>
+        </div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- REPLY PAGE -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">What the person sees</div>
+    <h2>The private reply page</h2>
+    <p class="lead">The link in the message opens this page on their phone. No login, only their first name, and the link expires. What they send is saved against their record.</p>
+  </div>
+  <div class="stage">
+    <div class="phone"><div class="screen" style="height:620px">
+      <div class="appbar"><div><b>We missed you</b><div class="sub">M1 Class · Day 1</div></div></div>
+      <div class="body" style="gap:12px">
+        <p>Hello <b>Divine</b>, we were thinking of you on Sunday. You are welcome to join us at the next class.</p>
+        <div class="card"><b>What we studied</b><div class="sub" style="margin-top:4px">Day 1: Why we need a new life in Christ, and the first steps of faith.</div><span class="btn out sm" style="margin-top:8px"><svg class="i" style="width:14px;height:14px"><use href="#i-file"/></svg>Download the notes</span></div>
+        <div class="card"><b>Next class</b><div class="sub" style="margin-top:4px">Sunday 19 Oct, 9:00, Kagugu hall</div></div>
+        <div><b>Is there something that kept you away?</b><div class="sub">Only if you would like to share.</div></div>
+        <div class="chipsel"><span>Work</span><span class="on">Sick</span><span>Transport</span><span>Family</span><span>Forgot</span><span>Other</span></div>
+        <div class="field"><div class="in" style="height:64px;align-items:flex-start;padding-top:10px;color:var(--muted)">I was not well, I am better now.</div></div>
+        <span class="btn lg">Send</span>
+      </div>
+    </div></div>
+    <div class="note">
+      <h3>Why a link and not a form in the app</h3>
+      <ul class="tips">
+        <li>The person is not a team member, so they cannot log in. The link is the key, and each one belongs to one person and one day.</li>
+        <li>The page shows only their first name, what was studied, and the next class date.</li>
+        <li>If someone prefers a phone call, the volunteer records the reason by hand from the Missed tab.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- MATERIALS -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Page 1 · Materials tab</div>
+    <h2>Study files, shared by each person's preferred channel</h2>
+    <p class="lead">Upload notes once, then share them with everyone or only with people who missed a day. Each person gets the message on the channel they prefer: WhatsApp or email.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div><div class="grp">Classes</div><div class="on"><svg class="i"><use href="#i-award"/></svg>M1 Class</div><div><svg class="i"><use href="#i-cal"/></svg>Baptism</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">M1 Class</b><div class="sub">October class</div></div></div>
+      <div class="seg" style="margin-bottom:12px"><div>Enrolled 14</div><div>Needs M1 9</div><div>Missed 3</div><div class="on">Materials 4</div><div>Certificates</div></div>
+      <div class="two-c">
+        <div class="stack">
+          <div class="drz"><svg class="i" style="width:20px;height:20px"><use href="#i-upload"/></svg><b style="color:var(--fg)">Drop files here or choose files</b>PDF, Word, PowerPoint, images · up to 25 MB each</div>
+          <div class="item"><div class="fileic"><svg class="i"><use href="#i-file"/></svg></div><div class="main"><div class="nm">What is M1, notes.pdf</div><div class="meta"><span class="badge b-gray">Day 1</span>420 KB · Rahman · 12 Oct</div></div><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div>
+          <div class="item"><div class="fileic"><svg class="i"><use href="#i-file"/></svg></div><div class="main"><div class="nm">Memory verses.jpg</div><div class="meta"><span class="badge b-gray">Day 1</span>1.2 MB · Kevin · 12 Oct</div></div><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div>
+          <div class="item"><div class="fileic"><svg class="i"><use href="#i-file"/></svg></div><div class="main"><div class="nm">Salvation, slides.pptx</div><div class="meta"><span class="badge b-gray">Day 2</span>3.8 MB · Kevin · 19 Oct</div></div><svg class="i" style="color:var(--muted)"><use href="#i-more"/></svg></div>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:10px">
+          <b>Share files</b>
+          <div class="sel" style="justify-content:space-between">Those who missed Day 1 (3)<svg class="i" style="width:14px;height:14px;color:var(--muted)"><use href="#i-down"/></svg></div>
+          <div class="chips"><span class="chip">What is M1, notes.pdf</span><span class="chip">Memory verses.jpg</span></div>
+          <div class="reason"><span>By WhatsApp</span><b>2</b></div><div class="reason"><span>By email</span><b>1</b></div>
+          <span class="btn">Open share list</span>
+          <div class="sub">People get a private link to the files, valid for 7 days. A web page cannot attach files to a WhatsApp chat, so the message carries the link.</div>
+        </div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- CERTIFICATES -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Page 1 · Certificates tab</div>
+    <h2>Certificates for people who attended every day</h2>
+    <p class="lead">Everyone who ticked 3 of 3 is listed as ready. People who missed a day show why, and a leader can allow a make-up day. Certificates print on one page each, with a number.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div><div class="grp">Classes</div><div class="on"><svg class="i"><use href="#i-award"/></svg>M1 Class</div><div><svg class="i"><use href="#i-cal"/></svg>Baptism</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">M1 Class</b><div class="sub">October class · ended 26 Oct</div></div></div>
+      <div class="seg" style="margin-bottom:12px"><div>Enrolled 14</div><div>Needs M1 9</div><div>Missed 3</div><div>Materials 4</div><div class="on">Certificates</div></div>
+      <div class="two-c" style="grid-template-columns:minmax(0,1fr) 340px">
+        <div class="stack">
+          <div class="bulk"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><b>9 ready</b><span class="btn sm"><svg class="i" style="width:14px;height:14px"><use href="#i-award"/></svg>Print certificates</span><span class="btn out sm">Mark as issued</span></div>
+          <div class="arow"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><div class="grow"><b>Aline Uwase</b><div class="sub">3 of 3 days</div></div><span class="badge b-gray">Not issued</span></div>
+          <div class="arow"><span class="cb on"><svg class="i" style="width:11px;height:11px"><use href="#i-check"/></svg></span><div class="grow"><b>Grace Ineza</b><div class="sub">3 of 3 days</div></div><span class="badge b-gray">Not issued</span></div>
+          <div class="arow"><span class="cb"></span><div class="grow"><b>Patrick Habimana</b><div class="sub">3 of 3 days</div></div><span class="badge b-green">Issued · M1-2026-0003</span></div>
+          <div class="lbl">Not ready <span class="n">· 2</span></div>
+          <div class="arow"><div class="grow"><b>Eric Mugisha</b><div class="sub">2 of 3 days, missed Day 2</div></div><span class="btn out sm">Allow make-up</span></div>
+          <div class="arow"><div class="grow"><b>Divine Keza</b><div class="sub">1 of 3 days, missed Day 1 and Day 3</div></div><span class="btn out sm">Allow make-up</span></div>
+        </div>
+        <div class="cert">
+          <div class="t">Your Church Name</div>
+          <div class="n">Certificate of Completion</div>
+          <p>This certifies that</p>
+          <div class="n" style="font-size:22px">Aline Uwase</div>
+          <p>attended all three days of the M1 Class, held in October 2026 at Kagugu hall.</p>
+          <div class="sub">Certificate no. M1-2026-0004</div>
+          <div class="sig"><div>Pastor</div><div>Class leader</div></div>
+        </div>
+      </div>
+    </main>
+  </div></div></div></div>
+</section>
+
+<!-- BAPTISM -->
+<section class="sec">
+  <div class="sec-head">
+    <div class="kicker">Page 2 · Baptism</div>
+    <h2>Who needs baptism, and when</h2>
+    <p class="lead">A separate page from M1. Candidates who need baptism are listed on the left, and each baptism date is a card on the right. Adding someone to a date marks them Scheduled, and ticking them after the service marks them Baptized.</p>
+  </div>
+  <div class="desk"><div class="deskin"><div class="sc"><div class="app">
+    <aside class="sb"><div><svg class="i"><use href="#i-home"/></svg>Home</div><div><svg class="i"><use href="#i-check"/></svg>Check-in</div><div><svg class="i"><use href="#i-users"/></svg>People</div><div><svg class="i"><use href="#i-phone"/></svg>Follow-ups</div><div><svg class="i"><use href="#i-cols"/></svg>Board</div><div><svg class="i"><use href="#i-alert"/></svg>Attention</div><div class="grp">Classes</div><div><svg class="i"><use href="#i-award"/></svg>M1 Class</div><div class="on"><svg class="i"><use href="#i-cal"/></svg>Baptism</div></aside>
+    <main class="mn">
+      <div class="ph"><div><b class="h">Baptism</b><div class="sub">12 need baptism · 5 scheduled · 31 baptized</div></div><span class="btn"><svg class="i"><use href="#i-plus"/></svg>New baptism date</span></div>
+      <div class="seg" style="margin-bottom:12px"><div class="on">Needs baptism 12</div><div>Scheduled 5</div><div>Baptized 31</div></div>
+      <div class="two-c" style="grid-template-columns:minmax(0,1fr) 320px">
+        <div class="tw" style="min-width:0"><table class="col-tbl">
+          <thead><tr><th></th><th>Name</th><th>Phone</th><th>Address</th><th>M1</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><span class="cb"></span></td><td><b>Aline Uwase</b></td><td>0788 000 101</td><td>Kinyinya, Kagugu</td><td><span class="badge b-green">Completed</span></td><td><span class="btn out sm">Add to date</span></td></tr>
+            <tr><td><span class="cb"></span></td><td><b>Grace Ineza</b></td><td>0788 000 103</td><td>Kagugu, Rukingu</td><td><span class="badge b-green">Completed</span></td><td><span class="btn out sm">Add to date</span></td></tr>
+            <tr><td><span class="cb"></span></td><td><b>Eric Mugisha</b></td><td>0788 000 102</td><td>Gisozi, Kanyinya</td><td><span class="badge b-amber">In progress</span></td><td><span class="btn out sm">Add to date</span></td></tr>
+            <tr><td><span class="cb"></span></td><td><b>Samuel Ndayisaba</b></td><td>0788 000 108</td><td>Kicukiro</td><td><span class="badge b-red">Not started</span></td><td><span class="btn out sm">Add to date</span></td></tr>
+          </tbody></table></div>
+        <div class="card" style="display:flex;flex-direction:column;gap:8px">
+          <div><b>Sun 8 Nov, 2:00 pm</b><div class="sub">Kagugu church · 3 people</div></div>
+          <div class="reason"><span>Patrick Habimana</span><span class="badge b-blue">Registered</span></div>
+          <div class="reason"><span>Gloria Nyirahabimana</span><span class="badge b-blue">Registered</span></div>
+          <div class="reason"><span>Claudine Mukeshimana</span><span class="badge b-blue">Registered</span></div>
+          <div style="display:flex;gap:8px;margin-top:6px"><span class="btn out sm grow">Send reminders</span><span class="btn sm grow">Mark baptized</span></div>
+        </div>
+      </div>
+      <div class="sub" style="margin-top:10px">The chip next to M1 is a heads-up, not a block: leaders decide whether M1 must come first.</div>
+    </main>
+  </div></div></div></div>
+</section>
+
+</div>
+
+</body></html>

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { daysSince, relativeDays } from '@/lib/dates';
 import { phoneDigits } from '@/lib/phone';
 
@@ -13,6 +14,42 @@ export interface FollowUpPerson {
   follow_up_status: string;
   assigned_at: string | null;
   assigner: { full_name: string } | { full_name: string }[] | null;
+  /** Day number of the most recent closed M1 day this person was Absent on. */
+  missed_m1_day?: number | null;
+}
+
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+/**
+ * For a set of people, return the latest closed M1 day each was marked Absent
+ * on (task 6, 2.5) so their follow-up card can show "Missed M1 Day N".
+ */
+export async function fetchMissedM1(
+  supabase: SupabaseClient,
+  personIds: string[]
+): Promise<Record<string, number>> {
+  if (personIds.length === 0) return {};
+  const { data } = await supabase
+    .from('m1_attendance')
+    .select('person_id, status, m1_sessions(day_number, closed)')
+    .in('person_id', personIds)
+    .eq('status', 'Absent');
+  const result: Record<string, number> = {};
+  for (const raw of (data ?? []) as {
+    person_id: string;
+    m1_sessions: { day_number: number; closed: boolean } | { day_number: number; closed: boolean }[] | null;
+  }[]) {
+    const session = one(raw.m1_sessions);
+    if (!session || !session.closed) continue;
+    const current = result[raw.person_id];
+    if (current === undefined || session.day_number > current) {
+      result[raw.person_id] = session.day_number;
+    }
+  }
+  return result;
 }
 
 export function assignerName(person: FollowUpPerson): string | null {

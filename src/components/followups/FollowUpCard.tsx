@@ -35,6 +35,19 @@ function NewTag({ person }: { person: FollowUpPerson }) {
   );
 }
 
+/** Red "Missed M1 Day N" tag when the person was Absent on a closed M1 day. */
+function MissedM1Tag({ person }: { person: FollowUpPerson }) {
+  if (!person.missed_m1_day) return null;
+  return (
+    <Badge
+      variant="outline"
+      className="border-red-200 bg-red-100 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400"
+    >
+      Missed M1 Day {person.missed_m1_day}
+    </Badge>
+  );
+}
+
 interface CardProps {
   person: FollowUpPerson;
   onLog: (person: FollowUpPerson) => void;
@@ -85,6 +98,7 @@ export function FollowUpCard({ person, onLog, onFocus }: CardProps) {
 
       <div className="flex flex-wrap items-center gap-1.5">
         <NewTag person={person} />
+        <MissedM1Tag person={person} />
         {person.follow_up_status === 'Not Started' && (
           <Badge variant="outline" className={followUpStatusColors['Not Started']}>
             Not started

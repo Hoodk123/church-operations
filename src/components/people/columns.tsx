@@ -25,6 +25,10 @@ export interface Person {
   registered_by: string | null;
   registered_by_name: string | null;
   contact_preference: string | null;
+  email: string | null;
+  address_details: string | null;
+  needs_m1: boolean;
+  needs_baptism: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -227,5 +231,35 @@ export const optionalColumns: ColumnDef<Person, any>[] = [
         <span className="text-muted-foreground">—</span>
       );
     },
+  },
+  {
+    accessorKey: 'email',
+    header: 'Email',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
+    accessorKey: 'address_details',
+    header: 'Address',
+    cell: ({ getValue }) => {
+      const val = getValue<string | null>();
+      return val ?? <span className="text-muted-foreground">—</span>;
+    },
+  },
+  {
+    id: 'needs_m1',
+    header: 'Needs M1',
+    accessorFn: (row) => (row.needs_m1 ? 'Yes' : 'No'),
+    filterFn: multiValueFilterFn,
+    cell: ({ getValue }) => (getValue<string>() === 'Yes' ? 'Yes' : '—'),
+  },
+  {
+    id: 'needs_baptism',
+    header: 'Needs baptism',
+    accessorFn: (row) => (row.needs_baptism ? 'Yes' : 'No'),
+    filterFn: multiValueFilterFn,
+    cell: ({ getValue }) => (getValue<string>() === 'Yes' ? 'Yes' : '—'),
   },
 ];

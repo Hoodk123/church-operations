@@ -89,7 +89,7 @@ export default function AppShell() {
         />
         <div className="flex">
           <Sidebar collapsed={sidebarCollapsed} role={member.role} />
-          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 pb-24 md:pb-8">
+          <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-6 pb-24 md:pb-8 print:overflow-visible print:p-0">
             <Outlet />
           </main>
         </div>

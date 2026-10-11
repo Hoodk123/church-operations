@@ -1,5 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
-import { Users, UserCheck, Phone, Columns3, TriangleAlert, Home } from 'lucide-react';
+import {
+  Users,
+  UserCheck,
+  Phone,
+  Columns3,
+  TriangleAlert,
+  Home,
+  GraduationCap,
+  Droplets,
+} from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -9,6 +18,8 @@ export interface NavItem {
   mobile: boolean;
   /** Omitted = every role can see it. */
   roles?: string[];
+  /** Section heading shown above the first item of the group. */
+  group?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -47,6 +58,22 @@ export const NAV_ITEMS: NavItem[] = [
     icon: TriangleAlert,
     mobile: true,
     roles: ['Admin'],
+  },
+  {
+    label: 'M1 Class',
+    href: '/m1',
+    icon: GraduationCap,
+    mobile: false,
+    group: 'Classes',
+    roles: ['Admin', 'Pastor', 'Follow-up Coordinator', 'Info Desk'],
+  },
+  {
+    label: 'Baptism',
+    href: '/baptism',
+    icon: Droplets,
+    mobile: false,
+    group: 'Classes',
+    roles: ['Admin', 'Pastor', 'Follow-up Coordinator'],
   },
 ];
 

@@ -6,6 +6,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Dialog,
   DialogContent,
@@ -20,6 +22,7 @@ import {
   m1Statuses,
   baptismStatuses,
   followUpStatuses,
+  contactPreferenceOptions,
 } from './constants';
 
 interface AddPersonFormProps {
@@ -48,6 +51,10 @@ interface FormState {
   how_found_church: string;
   baptism_status: string;
   contact_preference: string;
+  email: string;
+  address_details: string;
+  needs_m1: boolean;
+  needs_baptism: boolean;
   notes: string;
 }
 
@@ -66,6 +73,10 @@ const emptyForm: FormState = {
   how_found_church: '',
   baptism_status: '',
   contact_preference: '',
+  email: '',
+  address_details: '',
+  needs_m1: false,
+  needs_baptism: false,
   notes: '',
 };
 
@@ -148,6 +159,10 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
       how_found_church: form.how_found_church.trim() || null,
       baptism_status: form.baptism_status || null,
       contact_preference: form.contact_preference || null,
+      email: form.email.trim() || null,
+      address_details: form.address_details.trim() || null,
+      needs_m1: form.needs_m1,
+      needs_baptism: form.needs_baptism,
       notes: form.notes.trim() || null,
       registered_by: registeredById,
     });
@@ -254,19 +269,38 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
                     <p className="text-[11px] text-destructive mt-1">{phoneError}</p>
                   )}
                 </FormField>
-                <FormField label="Preferred Contact Method">
-                  <Select value={form.contact_preference} onValueChange={(v) => set('contact_preference', v ?? '')}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select contact method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                      <SelectItem value="SMS">SMS</SelectItem>
-                      <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <FormField label="Email">
+                  <Input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => set('email', e.target.value)}
+                    placeholder="name@example.com"
+                  />
                 </FormField>
               </div>
+              <FormField label="Preferred Contact Method">
+                <ToggleGroup
+                  variant="outline"
+                  className="w-full"
+                  value={form.contact_preference ? [form.contact_preference] : []}
+                  onValueChange={(v) => set('contact_preference', v[0] ?? '')}
+                >
+                  {contactPreferenceOptions.map((method) => {
+                    const needsEmail = method === 'Email';
+                    const disabled = needsEmail ? !form.email.trim() : !form.phone.trim();
+                    return (
+                      <ToggleGroupItem
+                        key={method}
+                        value={method}
+                        disabled={disabled}
+                        className="flex-1"
+                      >
+                        {method}
+                      </ToggleGroupItem>
+                    );
+                  })}
+                </ToggleGroup>
+              </FormField>
             </div>
 
             {/* Section 3: Location & Fellowship */}
@@ -282,14 +316,21 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
                     placeholder="e.g. Kigali, Kicukiro"
                   />
                 </FormField>
-                <FormField label="HBF Group (Home Bible Fellowship)">
+                <FormField label="Address details">
                   <Input
-                    value={form.hbf_group}
-                    onChange={(e) => set('hbf_group', e.target.value)}
-                    placeholder="e.g. Remera HBF, Kicukiro HBF"
+                    value={form.address_details}
+                    onChange={(e) => set('address_details', e.target.value)}
+                    placeholder="Street, landmark, sector"
                   />
                 </FormField>
               </div>
+              <FormField label="HBF Group (Home Bible Fellowship)">
+                <Input
+                  value={form.hbf_group}
+                  onChange={(e) => set('hbf_group', e.target.value)}
+                  placeholder="e.g. Remera HBF, Kicukiro HBF"
+                />
+              </FormField>
               <FormField label="How did they hear about us / Who invited them?">
                 <Input
                   value={form.how_found_church}
@@ -342,6 +383,31 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
                     </SelectContent>
                   </Select>
                 </FormField>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Needs M1 class</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Show this person in the M1 waiting list.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.needs_m1}
+                  onCheckedChange={(checked) => set('needs_m1', checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Needs baptism</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Add to the baptism list on the Baptism page.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.needs_baptism}
+                  onCheckedChange={(checked) => set('needs_baptism', checked)}
+                />
               </div>
             </div>
 
