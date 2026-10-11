@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { CalendarPlus, Plus, Users } from 'lucide-react';
+import { CalendarPlus, BellRing, Plus, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
-import { fetchClassStats, venueLabel, type M1Class, type M1ClassStats } from '@/components/m1/m1';
+import {
+  fetchClassStats,
+  fetchClassSessions,
+  venueLabel,
+  type M1Class,
+  type M1ClassStats,
+  type M1Session,
+} from '@/components/m1/m1';
 import EnrolledTab from '@/components/m1/EnrolledTab';
 import AddSheet from '@/components/m1/AddSheet';
+import RemindersSheet from '@/components/m1/RemindersSheet';
 import NewClassDialog from '@/components/m1/NewClassDialog';
 import { NeedsM1Tab } from '@/components/m1/NeedsM1Tab';
 import { MissedTab } from '@/components/m1/MissedTab';
@@ -34,10 +42,14 @@ export default function M1Page() {
   const [classes, setClasses] = useState<M1Class[]>([]);
   const [classId, setClassId] = useState<string | null>(null);
   const [statsState, setStatsState] = useState<{ id: string; data: M1ClassStats } | null>(null);
+  const [activeSessionState, setActiveSessionState] = useState<{ id: string; session: M1Session | null } | null>(
+    null
+  );
   const [statsNonce, setStatsNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>('enrolled');
   const [addOpen, setAddOpen] = useState(false);
+  const [remindersOpen, setRemindersOpen] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
 
   const loadClasses = useCallback(async () => {
@@ -69,9 +81,14 @@ export default function M1Page() {
   useEffect(() => {
     if (!classId) return;
     let cancelled = false;
-    fetchClassStats(supabase, classId)
-      .then((next) => {
-        if (!cancelled) setStatsState({ id: classId, data: next });
+    Promise.all([fetchClassStats(supabase, classId), fetchClassSessions(supabase, classId)])
+      .then(([next, sessions]) => {
+        if (cancelled) return;
+        setStatsState({ id: classId, data: next });
+        setActiveSessionState({
+          id: classId,
+          session: sessions.find((s) => !s.closed) ?? null,
+        });
       })
       .catch(() => {});
     return () => {
@@ -80,6 +97,7 @@ export default function M1Page() {
   }, [supabase, classId, statsNonce]);
 
   const stats = statsState && statsState.id === classId ? statsState.data : null;
+  const activeSession = activeSessionState?.id === classId ? activeSessionState.session : null;
 
   const reload = useCallback(() => {
     loadClasses();
@@ -162,15 +180,25 @@ export default function M1Page() {
                 </span>
               </>
             )}
-            <Button
-              variant="outline"
-              className="ml-auto hidden md:inline-flex"
-              disabled={!klass}
-              onClick={() => setAddOpen(true)}
-            >
-              <Plus className="size-4" />
-              Add member
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={!activeSession}
+                onClick={() => setRemindersOpen(true)}
+              >
+                <BellRing className="size-4" />
+                Send reminders
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden md:inline-flex"
+                disabled={!klass}
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="size-4" />
+                Add member
+              </Button>
+            </div>
           </div>
 
           {klass && (
@@ -249,6 +277,15 @@ export default function M1Page() {
           onOpenChange={setAddOpen}
           classId={klass.id}
           onAdded={loadClasses}
+        />
+      )}
+
+      {klass && activeSession && (
+        <RemindersSheet
+          open={remindersOpen}
+          onOpenChange={setRemindersOpen}
+          klass={klass}
+          session={activeSession}
         />
       )}
 
