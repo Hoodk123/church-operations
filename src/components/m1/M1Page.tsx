@@ -19,6 +19,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { type SelectOption } from '@/lib/select-items';
 
 type TabKey = 'enrolled' | 'needs' | 'missed' | 'materials' | 'certificates';
 
@@ -65,6 +66,15 @@ export default function M1Page() {
 
   const klass = useMemo(() => classes.find((k) => k.id === classId) ?? null, [classes, classId]);
 
+  const classItems = useMemo<SelectOption[]>(
+    () =>
+      classes.map((k) => ({
+        value: k.id,
+        label: k.status === 'Closed' ? `${k.title} (closed)` : k.title,
+      })),
+    [classes]
+  );
+
   const supportsTabs = isLeader && !!klass;
 
   return (
@@ -105,7 +115,7 @@ export default function M1Page() {
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={classId ?? undefined} onValueChange={(v) => setClassId(v)}>
+            <Select items={classItems} value={classId ?? undefined} onValueChange={(v) => setClassId(v)}>
               <SelectTrigger className="max-w-60">
                 <SelectValue placeholder="Choose a class" />
               </SelectTrigger>

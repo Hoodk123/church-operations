@@ -26,6 +26,7 @@ import ScreenHeader from '@/components/layout/ScreenHeader';
 import { useShellMember } from '@/components/layout/shell';
 import { useIsMobile } from '@/lib/use-is-mobile';
 import { rlsErrorMessage } from '@/lib/rls-error';
+import { type SelectOption } from '@/lib/select-items';
 import { toast } from 'sonner';
 import { categories, followUpStatuses } from '../people/constants';
 import type { Person } from '../people/columns';
@@ -84,6 +85,16 @@ export default function BoardPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [activePerson, setActivePerson] = useState<Person | null>(null);
+
+  const assignedItems = useMemo<SelectOption[]>(
+    () => [
+      { value: 'Everyone', label: 'Everyone' },
+      { value: 'Me', label: 'Me' },
+      { value: 'Unassigned', label: 'Unassigned' },
+      ...teamMembers.map((t) => ({ value: t.id, label: t.full_name })),
+    ],
+    [teamMembers]
+  );
 
   useEffect(() => {
     let active = false;
@@ -218,17 +229,14 @@ export default function BoardPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">Assigned to</span>
-        <Select value={assignedFilter} onValueChange={(v) => setAssignedFilter(v ?? 'Everyone')}>
+        <Select items={assignedItems} value={assignedFilter} onValueChange={(v) => setAssignedFilter(v ?? 'Everyone')}>
           <SelectTrigger className="h-10 w-auto min-w-36">
             <SelectValue placeholder="Assigned to" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Everyone">Everyone</SelectItem>
-            <SelectItem value="Me">Me</SelectItem>
-            <SelectItem value="Unassigned">Unassigned</SelectItem>
-            {teamMembers.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.full_name}
+            {assignedItems.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
               </SelectItem>
             ))}
           </SelectContent>

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { validateRwandaPhone } from '@/lib/phone';
+import { type SelectOption } from '@/lib/select-items';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
@@ -107,6 +108,14 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
     setForm((prev) => ({ ...prev, [key]: value }));
     if (key === 'phone') setPhoneError('');
   }
+
+  const teamItems = useMemo<SelectOption[]>(
+    () => [
+      { value: '', label: 'Unassigned' },
+      ...teamMembers.map((m) => ({ value: m.id, label: m.full_name })),
+    ],
+    [teamMembers]
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -418,14 +427,13 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
               </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FormField label="Assigned Follow-up Person">
-                  <Select value={form.assigned_to} onValueChange={(v) => set('assigned_to', v ?? '')}>
+                  <Select items={teamItems} value={form.assigned_to} onValueChange={(v) => set('assigned_to', v ?? '')}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Assign team member" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Unassigned</SelectItem>
-                      {teamMembers.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                      {teamItems.map((m) => (
+                        <SelectItem key={m.value || 'unassigned'} value={m.value}>{m.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   User,
   MapPin,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useShellMember } from '@/components/layout/shell';
+import { type SelectOption } from '@/lib/select-items';
 import LogContactSheet from '@/components/followups/LogContactSheet';
 import { MarkNewConvertButton } from './MarkNewConvertButton';
 import { Badge } from '@/components/ui/badge';
@@ -146,6 +147,14 @@ export default function PersonDetailDrawer({
   const supabase = createClient();
   const member = useShellMember();
   const memberId = member?.id ?? '';
+
+  const teamItems = useMemo<SelectOption[]>(
+    () => [
+      { value: '', label: 'Unassigned' },
+      ...teamMembers.map((m) => ({ value: m.id, label: m.full_name })),
+    ],
+    [teamMembers]
+  );
 
   useEffect(() => {
     async function loadTeam() {
@@ -573,14 +582,13 @@ export default function PersonDetailDrawer({
 
                   <div className="grid grid-cols-2 gap-3">
                     <FormField label="Assigned Follow-up Person">
-                      <Select value={editForm.assigned_to} onValueChange={(v) => setFormField('assigned_to', v ?? '')}>
+                      <Select items={teamItems} value={editForm.assigned_to} onValueChange={(v) => setFormField('assigned_to', v ?? '')}>
                         <SelectTrigger className="h-8 w-full">
                           <SelectValue placeholder="Unassigned" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
-                          {teamMembers.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                          {teamItems.map((m) => (
+                            <SelectItem key={m.value || 'unassigned'} value={m.value}>{m.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

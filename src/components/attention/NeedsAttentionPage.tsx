@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import { useShellMember } from '@/components/layout/shell';
+import { type SelectOption } from '@/lib/select-items';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince } from '@/lib/dates';
 import { categoryColors } from '../people/constants';
@@ -75,6 +76,15 @@ export default function NeedsAttentionPage() {
   const [assigning, setAssigning] = useState(false);
   const [detailPerson, setDetailPerson] = useState<Person | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  const volunteerItems = useMemo<SelectOption[]>(
+    () =>
+      volunteers.map((v) => ({
+        value: v.id,
+        label: `${v.full_name} (${v.assigned} ${v.assigned === 1 ? 'person' : 'people'})`,
+      })),
+    [volunteers]
+  );
 
   useEffect(() => {
     let active = false;
@@ -295,7 +305,7 @@ export default function NeedsAttentionPage() {
           <span className="text-sm font-medium tabular-nums">
             {selected.size} selected
           </span>
-          <Select value={target} onValueChange={(v) => setTarget(v ?? '')}>
+          <Select items={volunteerItems} value={target} onValueChange={(v) => setTarget(v ?? '')}>
             <SelectTrigger
               className="h-9 min-w-44 flex-1"
               disabled={assigning}
@@ -304,9 +314,9 @@ export default function NeedsAttentionPage() {
               <SelectValue placeholder="Assign to…" />
             </SelectTrigger>
             <SelectContent>
-              {volunteers.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.full_name} ({v.assigned} {v.assigned === 1 ? 'person' : 'people'})
+              {volunteerItems.map((v) => (
+                <SelectItem key={v.value} value={v.value}>
+                  {v.label}
                 </SelectItem>
               ))}
             </SelectContent>
