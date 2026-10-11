@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
-import { venueLabel, type M1Class } from '@/components/m1/m1';
+import { fetchClassStats, venueLabel, type M1Class, type M1ClassStats } from '@/components/m1/m1';
 import EnrolledTab from '@/components/m1/EnrolledTab';
 import AddSheet from '@/components/m1/AddSheet';
 import NewClassDialog from '@/components/m1/NewClassDialog';
@@ -33,6 +33,8 @@ export default function M1Page() {
 
   const [classes, setClasses] = useState<M1Class[]>([]);
   const [classId, setClassId] = useState<string | null>(null);
+  const [statsState, setStatsState] = useState<{ id: string; data: M1ClassStats } | null>(null);
+  const [statsNonce, setStatsNonce] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>('enrolled');
   const [addOpen, setAddOpen] = useState(false);
@@ -62,6 +64,26 @@ export default function M1Page() {
 
   useEffect(() => {
     loadClasses();
+  }, [loadClasses]);
+
+  useEffect(() => {
+    if (!classId) return;
+    let cancelled = false;
+    fetchClassStats(supabase, classId)
+      .then((next) => {
+        if (!cancelled) setStatsState({ id: classId, data: next });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, classId, statsNonce]);
+
+  const stats = statsState && statsState.id === classId ? statsState.data : null;
+
+  const reload = useCallback(() => {
+    loadClasses();
+    setStatsNonce((n) => n + 1);
   }, [loadClasses]);
 
   const klass = useMemo(() => classes.find((k) => k.id === classId) ?? null, [classes, classId]);
@@ -136,7 +158,7 @@ export default function M1Page() {
                   {klass.status}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  {klass.required_days} days · {venueLabel(klass.venue)}
+                  {stats?.days ?? klass.required_days} days · {venueLabel(klass.venue)}
                 </span>
               </>
             )}
@@ -150,6 +172,18 @@ export default function M1Page() {
               Add member
             </Button>
           </div>
+
+          {klass && (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <StatTile label="Enrolled" value={stats?.enrolled} />
+              <StatTile
+                label={`Here today${stats?.activeDay ? ` (Day ${stats.activeDay})` : ''}`}
+                value={stats?.activePresent}
+              />
+              <StatTile label="Waiting for a class" value={stats?.waiting} />
+              <StatTile label="Missed a day" value={stats?.missed} hot={(stats?.missed ?? 0) > 0} />
+            </div>
+          )}
 
           {klass && supportsTabs ? (
             <Tabs value={tab} onValueChange={(v) => setTab((v ?? 'enrolled') as TabKey)}>
@@ -167,20 +201,20 @@ export default function M1Page() {
                   klass={klass}
                   isAdmin={isAdmin}
                   isLeader={isLeader}
-                  onChanged={loadClasses}
+                  onChanged={reload}
                 />
               </TabsContent>
               <TabsContent value="needs" className="mt-4">
-                <NeedsM1Tab key={classId} klass={klass} isAdmin={isAdmin} onChanged={loadClasses} />
+                <NeedsM1Tab key={classId} klass={klass} isAdmin={isAdmin} onChanged={reload} />
               </TabsContent>
               <TabsContent value="missed" className="mt-4">
-                <MissedTab key={classId} klass={klass} isLeader={isLeader} onChanged={loadClasses} />
+                <MissedTab key={classId} klass={klass} isLeader={isLeader} onChanged={reload} />
               </TabsContent>
               <TabsContent value="materials" className="mt-4">
-                <MaterialsTab key={classId} klass={klass} onChanged={loadClasses} />
+                <MaterialsTab key={classId} klass={klass} onChanged={reload} />
               </TabsContent>
               <TabsContent value="certificates" className="mt-4">
-                <CertificatesTab key={classId} klass={klass} onChanged={loadClasses} />
+                <CertificatesTab key={classId} klass={klass} onChanged={reload} />
               </TabsContent>
             </Tabs>
           ) : (
@@ -190,7 +224,7 @@ export default function M1Page() {
                 klass={klass}
                 isAdmin={isAdmin}
                 isLeader={isLeader}
-                onChanged={loadClasses}
+                onChanged={reload}
               />
             )
           )}
@@ -224,9 +258,18 @@ export default function M1Page() {
         onCreated={(id) => {
           setClassId(id);
           setTab('enrolled');
-          loadClasses();
+          reload();
         }}
       />
+    </div>
+  );
+}
+
+function StatTile({ label, value, hot }: { label: string; value?: number; hot?: boolean }) {
+  return (
+    <div className={`rounded-xl border bg-card p-3 ${hot ? 'border-red-500/60' : ''}`}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-2xl leading-tight font-semibold tabular-nums">{value ?? '—'}</div>
     </div>
   );
 }

@@ -79,7 +79,7 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
       supabase
         .from('m1_attendance')
         .select(
-          'session_id, person_id, status, people(id, first_name, last_name, phone, email, location, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
+          'session_id, person_id, status, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
         )
         .eq('session_id', selected.id)
         .in('status', ['Absent', 'Excused']),

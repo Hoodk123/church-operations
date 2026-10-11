@@ -9,6 +9,7 @@ export interface M1Person {
   phone: string | null;
   email: string | null;
   location: string | null;
+  address_details: string | null;
   gender: string | null;
   age_group: string | null;
   contact_preference: string | null;
@@ -155,7 +156,7 @@ export async function fetchEnrollments(
   const { data } = await supabase
     .from('m1_enrollments')
     .select(
-      'id, class_id, person_id, enrolled_at, walk_in, status, certificate_no, certificate_issued_at, people(id, first_name, last_name, phone, email, location, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
+      'id, class_id, person_id, enrolled_at, walk_in, status, certificate_no, certificate_issued_at, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
     )
     .eq('class_id', classId)
     .order('enrolled_at', { ascending: true });
@@ -199,6 +200,54 @@ export async function fetchPresentCounts(
   const counts: Record<string, number> = {};
   for (const row of data ?? []) counts[row.person_id] = (counts[row.person_id] ?? 0) + 1;
   return counts;
+}
+
+/**
+ * Numbers for the four M1 stat tiles. Read straight from the database so the
+ * tiles never guess: enrolled count, today's present count, waiting list size
+ * and how many enrolled people have missed a closed day.
+ */
+export interface M1ClassStats {
+  enrolled: number;
+  waiting: number;
+  missed: number;
+  days: number;
+  activeDay: number | null;
+  activePresent: number;
+}
+
+export async function fetchClassStats(
+  supabase: SupabaseClient,
+  classId: string
+): Promise<M1ClassStats> {
+  const [sessions, attendanceBySession, enrollments, waiting] = await Promise.all([
+    fetchClassSessions(supabase, classId),
+    fetchAttendance(supabase, classId),
+    fetchEnrollments(supabase, classId),
+    supabase.rpc('m1_waiting_list'),
+  ]);
+  const enrolled = enrollments.filter((e) => e.status === 'Enrolled');
+  const enrolledIds = new Set(enrolled.map((e) => e.person_id));
+  const activeSession = sessions.find((s) => !s.closed) ?? sessions[0] ?? null;
+  const activeRows = activeSession ? (attendanceBySession[activeSession.id] ?? []) : [];
+  const activePresent = activeRows.filter((r) => r.status === 'Present').length;
+  const closedIds = new Set(sessions.filter((s) => s.closed).map((s) => s.id));
+  const missed = new Set<string>();
+  for (const [sessionId, rows] of Object.entries(attendanceBySession)) {
+    if (!closedIds.has(sessionId)) continue;
+    for (const row of rows) {
+      if (row.status === 'Absent' && enrolledIds.has(row.person_id)) missed.add(row.person_id);
+    }
+  }
+  const waitingData = waiting.data as unknown[] | null;
+  return {
+    enrolled: enrolled.length,
+    waiting: Array.isArray(waitingData) ? waitingData.length : 0,
+    missed: missed.size,
+    days: sessions.length,
+    activeDay: activeSession?.day_number ?? null,
+    activePresent,
+  };
 }
 
 /**
