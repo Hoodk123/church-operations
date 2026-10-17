@@ -46,9 +46,12 @@ services:
       # WSL2), NOT in a bind-mounted Windows folder (C:\...). Windows
       # bind-mounts are slow and break file permissions.
       - church_pgdata:/var/lib/postgresql/data
-      # Everything in this folder runs once, alphabetical order, on the
-      # FIRST start only (empty data directory). 
-      - ./db/init:/docker-entrypoint-initdb.d:ro
+      # Everything in deploy/db/init runs once, alphabetical order, on the
+      # FIRST start only (empty data directory). Path note: docker compose is
+      # run with --project-directory <repo root> (see scripts/db-up.sh), and
+      # relative bind paths in a compose file resolve against the project
+      # directory, so the path below must be repo-root-relative.
+      - ./deploy/db/init:/docker-entrypoint-initdb.d:ro
 
     healthcheck:
       # pg_isready is a light probe that does not log in; it answers "ready"
