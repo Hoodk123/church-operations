@@ -27,5 +27,5 @@ done
 echo "Database is up."
 echo "  Connect with:   bash scripts/db-psql.sh"
 echo "  (or)            docker exec -it church-db psql -U \"\$(sed -n 's/^POSTGRES_USER=//p' .env)\" -d \"\$(sed -n 's/^POSTGRES_DB=//p' .env)\""
-echo "  from JetBrains/DataGrip etc.: port 5432 on 127.0.0.1 (localhost only),"
+echo "  from JetBrains/DataGrip etc.: 127.0.0.1, port = PG_PORT in .env (localhost only);"
 echo "  user/password from .env - the password is NOT printed here."

@@ -15,6 +15,6 @@ fi
   exit 1
 }
 
-exec docker exec -it church-db psql \
+exec docker exec $( [ -t 0 ] && echo -it || echo -i ) church-db psql \
   -U "$(sed -n 's/^POSTGRES_USER=//p' .env)" \
   -d "$(sed -n 's/^POSTGRES_DB=//p' .env)"
