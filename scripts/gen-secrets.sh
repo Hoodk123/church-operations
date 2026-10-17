@@ -28,9 +28,10 @@ POSTGRES_DB_VALUE=church
 POSTGRES_USER_VALUE=church_owner
 
 if [ -f "$TARGET" ]; then
-  # --force: keep the operator-chosen DB name and TX/ENV, but reroll the passwords.
+  # --force: keep the operator-chosen DB name, host port and env, but reroll the passwords.
   POSTGRES_DB_VALUE=$(sed -n 's/^POSTGRES_DB=//p' "$TARGET")
   POSTGRES_USER_VALUE=$(sed -n 's/^POSTGRES_USER=//p' "$TARGET")
+  PG_PORT_VALUE=$(sed -n 's/^PG_PORT=//p' "$TARGET")
 fi
 
 cat > "$TARGET" <<EOF
@@ -40,6 +41,10 @@ cat > "$TARGET" <<EOF
 # Church environment switch. scripts/db-reset-dev.sh refuses to wipe the
 # database unless this is exactly "dev".
 CHURCH_ENV=dev
+
+# Port on THIS PC that reaches the database (localhost only).
+# Change when 5432 is already taken by another PostgreSQL on this machine.
+PG_PORT=${PG_PORT_VALUE:-5432}
 
 # Names (no secrets):
 POSTGRES_DB=$POSTGRES_DB_VALUE

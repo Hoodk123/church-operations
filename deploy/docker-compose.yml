@@ -19,8 +19,11 @@ services:
     # DEVELOPMENT ONLY: binding to 127.0.0.1 keeps the port on this one
     # machine - no other device on the LAN can even see it. In production
     # (Phase 5) the database has NO published ports at all.
+    # Host port is configurable (PG_PORT in .env, default 5432): on a PC that
+    # ALREADY runs another PostgreSQL (a common leftover), 5432 is taken, so
+    # only the host-side number changes; inside Docker it is still 5432.
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
 
     environment:
       # ./.env holds real values (never committed). "?" refuses to start

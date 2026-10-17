@@ -47,7 +47,7 @@ Don't worry about everything inside `deploy/docker-compose.yml` (the "recipe" fo
 |---|---|
 | `image: postgres:17.9-trixie` | The **exact** Postgres version everyone will run. Pinned on purpose (never "latest", which drifts). 17.9 matches the main version of the old Supabase system (17), so data import stays simple. "trixie" is the Debian 13 base image; the plain `17.9` tag points to exactly this image today — we write the name out so it can never silently change underneath us. Debian (not Alpine) keeps glibc behavior/glibc sorting bridges identical to what migrations were tested on. |
 | `restart: unless-stopped` | If the PC reboots or the Docker daemon restarts, the database comes back by itself. If you `docker stop` it on purpose, it stays stopped — that is the "unless-stopped" part. |
-| `ports: "127.0.0.1:5432:5432"` | Makes Postgres reachable at port 5432 **only from this one PC**. 127.0.0.1 = "this machine, the loopback", so no other laptop or phone in the room can even see the database. In production (Phase 5) we will publish no port at all; the API talks to the database inside Docker's private network. |
+| `ports: "127.0.0.1:${PG_PORT}:5432"` | Makes Postgres reachable from **this one PC only** — 127.0.0.1 means the loopback, so no other laptop or phone in the room can even see the database. The port uses `PG_PORT` from `.env` (default 5432); if this PC *already* runs another PostgreSQL that owns 5432, change only `PG_PORT` (e.g. 5433) — inside Docker it stays 5432 and everything works the same. In production (Phase 5) we publish no port at all; the API talks to the database inside Docker's private network. |
 | Named volume `church_pgdata` | The database's files live in a Docker-managed storage area inside WSL (NOT a Windows folder like `C:\...`). Deleting the container does not delete the volume — that is why stopping and re-up keeps your data. Only `scripts/db-reset-dev.sh` erases it, on purpose, twice-confirmed. |
 | `mem_limit: 1g` | The database container cannot claim more than 1 GB of RAM. Protects the rest of the PC (and the browser you'll have open). |
 | `shm_size: 128mb` | Postgres uses shared memory (/dev/shm) for parallel queries; Docker's default 64 MB is too small and can crash the container with "shared memory out of memory". 128 MB is the standard bump. |
@@ -89,7 +89,7 @@ bash scripts/db-reset-dev.sh  # ERASES all data and re-initialises. For developm
 
 ## 5. From a Windows SQL client (optional)
 
-DataGrip / pgAdmin etc. — Host `127.0.0.1`, port `5432`, database/user/password **read them from `.env`** in the repo root (never copy them into chat or screenshots). Works only while this PC runs the container — that's `127.0.0.1` doing its job.
+DataGrip / pgAdmin etc. — Host `127.0.0.1`, port = `PG_PORT` in `.env` (5432 unless changed there), database/user/password **read them from `.env`** in the repo root (never copy them into chat or screenshots). Works only while this PC runs the container — that's `127.0.0.1` doing its job.
 
 ## 6. If something breaks
 
@@ -101,6 +101,7 @@ bash scripts/db-reset-dev.sh         # the honest "start over" (development data
 
 Common ones:
 
+- **"ports are not available" when starting** — something else on this PC already owns the port (a leftover PostgreSQL service is a common cause). Change `PG_PORT` in `.env` to a free number (5433, 5434, …), then `bash scripts/db-up.sh` again.
 - **"container church-db is unhealthy"** right after starting — wait a minute (`start_period` gives the first start 60 s to create the database and run init scripts), then `docker logs church-db` to see the real error.
 - **"password authentication failed"** — you typed your old password into a client. Read `.env`. Or the volume is older than your `.env` (passwords changed on disk) — `bash scripts/db-reset-dev.sh` makes them agree.
 - **Docker commands "permission denied" or missing** in WSL — Docker Desktop is off, or its WSL Integration for this distro is off (Section 0, step 2).
