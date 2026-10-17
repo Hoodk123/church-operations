@@ -28,7 +28,9 @@ if [ "$answer" != "reset" ]; then
 fi
 
 docker compose -f deploy/docker-compose.yml --project-directory . down -v
-docker volume rm church_pgdata >/dev/null 2>&1 || true
+# down -v removes the project's named volumes; the explicit rm covers a
+# manually-created straggler volume only (ignore if absent).
+docker volume rm church_pgdata church-operations_church_pgdata >/dev/null 2>&1 || true
 
 echo "Data erased. Starting a fresh database (init scripts run again)..."
 sh scripts/db-up.sh
