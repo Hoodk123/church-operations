@@ -20,8 +20,19 @@ staged_paths() {
 for f in $(staged_paths); do
   case "$f" in
     .env|*/.env|.env.*|*/.env.*)
-      echo "[pre-commit] BLOCKED: '$f' looks like a secrets file (.env). Never commit secrets." >&2
-      fail=1 ;;
+      case "$f" in
+        .env.example|*/.env.example)
+          # Allowlist: the example file must contain only fake placeholder
+          # values. Refuse if a password line was edited to anything BUT the
+          # known fake token (i.e. someone pasted in a real password).
+          if grep -E '^(POSTGRES_PASSWORD|CHURCH_APP_PASSWORD)=' "$f" | grep -Ev '^(POSTGRES_PASSWORD|CHURCH_APP_PASSWORD)=CHANGE_ME__see_.env.example$' >/dev/null; then
+            echo "[pre-commit] BLOCKED: '$f' contains a real-looking password. Only the fake placeholder is allowed there." >&2
+            fail=1
+          fi ;;
+        *)
+          echo "[pre-commit] BLOCKED: '$f' looks like a secrets file (.env). Never commit secrets." >&2
+          fail=1 ;;
+      esac ;;
     *.dump|*/'.dump'|*.bak|*.bak2|*.sql.gz|*.sql.zst|*.backup)
       echo "[pre-commit] BLOCKED: '$f' looks like a database dump." >&2
       fail=1 ;;

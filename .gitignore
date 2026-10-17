@@ -25,3 +25,8 @@ dist-ssr
 
 # Environment variables
 .env
+.env.*
+!.env.example
+
+# Docker / database volume dumps (never commit database files)
+*.dump
