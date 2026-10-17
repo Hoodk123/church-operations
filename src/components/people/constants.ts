@@ -22,6 +22,9 @@ export const baptismStatuses = ['Not yet', 'Scheduled', 'Baptized'] as const;
 export const ageGroups = ['Child', 'Youth', 'Adult', 'Elderly'] as const;
 export const genders = ['Male', 'Female'] as const;
 
+/** Preferred contact methods for a person (task 6, 2.1). */
+export const contactPreferenceOptions = ['WhatsApp', 'Email', 'SMS', 'Call'] as const;
+
 export const CONTACT_METHODS = ['Call', 'WhatsApp', 'SMS', 'Visit', 'Other'] as const;
 export const CONTACT_OUTCOMES = [
   'Reached',
@@ -52,6 +55,8 @@ export const filterFieldConfigs = [
   { key: 'location', label: 'Location', values: [] },
   { key: 'hbf_group', label: 'HBF Group', values: [] },
   { key: 'assigned_to_name', label: 'Assigned To', values: [] },
+  { key: 'needs_m1', label: 'Needs M1', values: ['Yes', 'No'] },
+  { key: 'needs_baptism', label: 'Needs baptism', values: ['Yes', 'No'] },
 ] as const;
 
 export const sortFields = [

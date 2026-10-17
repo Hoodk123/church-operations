@@ -111,6 +111,36 @@ All data is stored in **Supabase** (PostgreSQL) with **Row Level Security (RLS)*
 - Navbar with avatar (initials + role badge), last updated text, activity drawer toggle, logout
 - Responsive design — table collapses to 3 essential columns on narrow viewports
 
+### M1 Class & Baptism (Task 06)
+- **M1 Class** (`/m1`): class bar (selector with status badge, Send reminders,
+  Add member, and a ⋯ menu to edit, archive or delete a class), four stat tiles,
+  and tabs for Enrolled, Needs M1, Missed, Materials, and Certificates (Info Desk
+  sees only Enrolled and Needs M1). The Enrolled tab is one table with a tick
+  column per day, immediate (optimistic) saving, a person sheet with contact
+  actions, attendance chips, and a message template picker.
+- **Add to class**: centred dialog to enrol from the waiting list or register a
+  walk-in (with duplicate-phone guard and optional "present today").
+- **Send reminders** and **catch-up** messages log to `m1_message_log`; missed-day
+  replies use a private `/reply/:token` link (no login) backed by
+  `get_reply_context` / `submit_absence_reply`.
+- **Materials**: upload to the `m1-materials` storage bucket and share signed
+  links. Deleting files is Admin-only (the storage policy requires it).
+- **Certificates**: issue numbers to eligible people and print them at
+  `/m1/certificates/print` (A4 landscape, one certificate per page).
+- **Baptism** (`/baptism`): tabs for Needs baptism, Scheduled and Baptized; a
+  candidate list from `baptism_candidates()`; a services list with Mark done,
+  Edit, Archive and Delete; and a reminder send queue.
+- **People**: new email, address details, preferred-contact, and "needs M1 /
+  needs baptism" fields, plus filters and an enrolled-class badge.
+- **Home**: "Waiting for M1" and "Need baptism" tiles for admins.
+- **Class and baptism management migrations**: `m1_class_manage` (adds
+  `m1_classes.archived_at`, a leader update policy, and `delete_m1_class`) and
+  `baptism_manage` (adds `baptism_events.archived_at`, Admin-only delete, and
+  `delete_baptism_event`). Rollbacks live in `supabase/rollbacks/`.
+
+Role gating follows `is_class_staff()` / `is_class_leader()` in the database;
+sidebar items a role cannot use are hidden, not disabled.
+
 ## Database schema
 
 ### `team_members`

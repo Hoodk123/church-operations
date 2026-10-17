@@ -15,7 +15,7 @@ import {
   FollowUpCard,
   FollowUpRow,
 } from './FollowUpCard';
-import { fullName, type FollowUpPerson } from './utils';
+import { fullName, fetchMissedM1, type FollowUpPerson } from './utils';
 import VolunteersTab from './VolunteersTab';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -128,8 +128,11 @@ export default function MyFollowupsPage() {
     ]);
     if (peopleRes.error) toast.error(rlsErrorMessage(peopleRes.error));
     if (logsRes.error) toast.error(rlsErrorMessage(logsRes.error));
+    const rows = (peopleRes.data ?? []) as unknown as FollowUpPerson[];
+    const missed = await fetchMissedM1(supabase, rows.map((p) => p.id));
+    for (const p of rows) p.missed_m1_day = missed[p.id] ?? null;
     applyData(
-      (peopleRes.data ?? []) as unknown as FollowUpPerson[],
+      rows,
       (logsRes.data ?? []) as unknown as DoneLog[]
     );
     setLoading(false);

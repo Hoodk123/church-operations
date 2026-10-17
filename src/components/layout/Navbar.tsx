@@ -50,7 +50,7 @@ export default function Navbar({
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center border-b bg-background px-4 gap-4">
+    <header className="sticky top-0 z-40 flex h-14 items-center border-b bg-background px-4 gap-4 print:hidden">
       {/* Left — app identity + sidebar toggle */}
       <div className="flex items-center gap-2 shrink-0">
         <Link to="/dashboard" className="flex items-center gap-2">

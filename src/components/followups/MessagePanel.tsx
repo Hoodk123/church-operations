@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { phoneDigits } from '@/lib/phone';
 import { useIsMobile } from '@/lib/use-is-mobile';
+import { type SelectOption } from '@/lib/select-items';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -88,6 +89,11 @@ export default function MessagePanel({
     [templates, selectedId]
   );
 
+  const templateItems = useMemo<SelectOption[]>(
+    () => (templates ?? []).map((t) => ({ value: t.id, label: t.name })),
+    [templates]
+  );
+
   const message = useMemo(() => {
     if (!selected) return '';
     const firstName = person?.first_name ?? 'there';
@@ -117,6 +123,7 @@ export default function MessagePanel({
   const body = (
     <div className="flex flex-col gap-3">
       <Select
+        items={templateItems}
         value={selectedId}
         onValueChange={(v) => {
           if (v) {
@@ -128,9 +135,9 @@ export default function MessagePanel({
           <SelectValue placeholder="Choose a template" />
         </SelectTrigger>
         <SelectContent>
-          {(templates ?? []).map((t) => (
-            <SelectItem key={t.id} value={t.id} className="text-base">
-              {t.name}
+          {templateItems.map((t) => (
+            <SelectItem key={t.value} value={t.value} className="text-base">
+              {t.label}
             </SelectItem>
           ))}
         </SelectContent>

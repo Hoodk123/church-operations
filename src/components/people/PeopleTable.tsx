@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   useReactTable,
@@ -89,6 +90,8 @@ export default function PeopleTable() {
   const [pageSize, setPageSize] = useState(25);
 
   const supabase = createClient();
+  const [searchParams] = useSearchParams();
+  const linkedPersonId = searchParams.get('person');
 
   const allColumns = useMemo(() => [...defaultColumns, ...optionalColumns], []);
 
@@ -120,16 +123,22 @@ export default function PeopleTable() {
     }
 
     if (data) {
-      setPeople(
-        data.map((r: any) => ({
-          ...r,
-          assigned_to_name: r.assigned_to_name?.full_name ?? null,
-          registered_by_name: r.registered_by_name?.full_name ?? null,
-        }))
-      );
+      const mapped = data.map((r: any) => ({
+        ...r,
+        assigned_to_name: r.assigned_to_name?.full_name ?? null,
+        registered_by_name: r.registered_by_name?.full_name ?? null,
+      }));
+      setPeople(mapped);
+      if (linkedPersonId) {
+        const match = mapped.find((p: Person) => p.id === linkedPersonId);
+        if (match) {
+          setSelectedPerson(match);
+          setDrawerOpen(true);
+        }
+      }
     }
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, linkedPersonId]);
 
   useEffect(() => {
     loadPeople();

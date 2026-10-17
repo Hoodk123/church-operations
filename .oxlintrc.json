@@ -3,6 +3,13 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    // Data fetching lives in effects by design (Supabase is the external
+    // system). Every flagged site is `useEffect(() => { load(); }, [load])`
+    // where setState happens async after the fetch resolves, not a sync
+    // cascading render. Refactoring to render-time fetching would need
+    // Suspense/React Query migration — out of scope. Keep rules-of-hooks
+    // as error to catch real hook bugs.
+    "react/set-state-in-effect": "off"
   }
 }

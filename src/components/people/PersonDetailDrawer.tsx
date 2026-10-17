@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   User,
   MapPin,
@@ -7,6 +7,7 @@ import {
   BookOpen,
   Droplets,
   MessageSquare,
+  Mail,
   Calendar,
   Users,
   Compass,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useShellMember } from '@/components/layout/shell';
+import { type SelectOption } from '@/lib/select-items';
 import LogContactSheet from '@/components/followups/LogContactSheet';
 import { MarkNewConvertButton } from './MarkNewConvertButton';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +25,8 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   Select,
   SelectContent,
@@ -56,6 +60,7 @@ import {
   ageGroups,
   followUpStatuses,
   needsPastorColor,
+  contactPreferenceOptions,
 } from './constants';
 import type { Person } from './columns';
 
@@ -136,9 +141,20 @@ export default function PersonDetailDrawer({
   const [deleting, setDeleting] = useState(false);
   const [contactLog, setContactLog] = useState<ContactLogRow[]>([]);
   const [logOpen, setLogOpen] = useState(false);
+  const [editNeedsM1, setEditNeedsM1] = useState(false);
+  const [editNeedsBaptism, setEditNeedsBaptism] = useState(false);
+  const [enrolledClass, setEnrolledClass] = useState<{ title: string; status: string } | null>(null);
   const supabase = createClient();
   const member = useShellMember();
   const memberId = member?.id ?? '';
+
+  const teamItems = useMemo<SelectOption[]>(
+    () => [
+      { value: '', label: 'Unassigned' },
+      ...teamMembers.map((m) => ({ value: m.id, label: m.full_name })),
+    ],
+    [teamMembers]
+  );
 
   useEffect(() => {
     async function loadTeam() {
@@ -177,6 +193,37 @@ export default function PersonDetailDrawer({
     };
   }, [supabase, open, person]);
 
+  useEffect(() => {
+    const id = person?.id;
+    if (!open || !id) {
+      setEnrolledClass(null);
+      return;
+    }
+    let active = true;
+    async function loadEnrollment() {
+      const { data } = await supabase
+        .from('m1_enrollments')
+        .select('status, m1_classes(title)')
+        .eq('person_id', id)
+        .order('enrolled_at', { ascending: false })
+        .limit(1);
+      if (!active) return;
+      const row = (data ?? [])[0] as
+        | { status: string; m1_classes: { title: string } | { title: string }[] | null }
+        | undefined;
+      if (!row) {
+        setEnrolledClass(null);
+        return;
+      }
+      const cls = Array.isArray(row.m1_classes) ? row.m1_classes[0] : row.m1_classes;
+      setEnrolledClass(cls ? { title: cls.title, status: row.status } : null);
+    }
+    void loadEnrollment();
+    return () => {
+      active = false;
+    };
+  }, [supabase, open, person]);
+
   if (!person) return null;
 
   const p: Person = person;
@@ -198,8 +245,12 @@ export default function PersonDetailDrawer({
       assigned_to: p.assigned_to ?? '',
       follow_up_status: p.follow_up_status ?? 'Not Started',
       contact_preference: p.contact_preference ?? '',
+      email: p.email ?? '',
+      address_details: p.address_details ?? '',
       notes: p.notes ?? '',
     });
+    setEditNeedsM1(p.needs_m1);
+    setEditNeedsBaptism(p.needs_baptism);
     setEditing(true);
     setError('');
   }
@@ -207,6 +258,8 @@ export default function PersonDetailDrawer({
   function cancelEdit() {
     setEditing(false);
     setEditForm({});
+    setEditNeedsM1(false);
+    setEditNeedsBaptism(false);
     setError('');
   }
 
@@ -236,6 +289,10 @@ export default function PersonDetailDrawer({
         assigned_to: editForm.assigned_to || null,
         follow_up_status: editForm.follow_up_status,
         contact_preference: editForm.contact_preference || null,
+        email: editForm.email.trim() || null,
+        address_details: editForm.address_details.trim() || null,
+        needs_m1: editNeedsM1,
+        needs_baptism: editNeedsBaptism,
         notes: editForm.notes.trim() || null,
       })
       .eq('id', personId)
@@ -387,19 +444,42 @@ export default function PersonDetailDrawer({
                         required
                       />
                     </FormField>
-                    <FormField label="Preferred Contact">
-                      <Select value={editForm.contact_preference} onValueChange={(v) => setFormField('contact_preference', v ?? '')}>
-                        <SelectTrigger className="h-8 w-full">
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                          <SelectItem value="SMS">SMS</SelectItem>
-                          <SelectItem value="Both">Both (WhatsApp & SMS)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <FormField label="Email">
+                      <Input
+                        type="email"
+                        value={editForm.email}
+                        onChange={(e) => setFormField('email', e.target.value)}
+                        className="h-8 text-sm"
+                        placeholder="name@example.com"
+                      />
                     </FormField>
                   </div>
+
+                  <FormField label="Preferred Contact">
+                    <ToggleGroup
+                      variant="outline"
+                      className="w-full"
+                      value={editForm.contact_preference ? [editForm.contact_preference] : []}
+                      onValueChange={(v) => setFormField('contact_preference', v[0] ?? '')}
+                    >
+                      {contactPreferenceOptions.map((method) => {
+                        const needsEmail = method === 'Email';
+                        const disabled = needsEmail
+                          ? !editForm.email?.trim()
+                          : !editForm.phone?.trim();
+                        return (
+                          <ToggleGroupItem
+                            key={method}
+                            value={method}
+                            disabled={disabled}
+                            className="flex-1 text-xs"
+                          >
+                            {method}
+                          </ToggleGroupItem>
+                        );
+                      })}
+                    </ToggleGroup>
+                  </FormField>
 
                   <div className="grid grid-cols-2 gap-3">
                     <FormField label="Location">
@@ -410,15 +490,24 @@ export default function PersonDetailDrawer({
                         placeholder="e.g. Kigali"
                       />
                     </FormField>
-                    <FormField label="HBF Group">
+                    <FormField label="Address details">
                       <Input
-                        value={editForm.hbf_group}
-                        onChange={(e) => setFormField('hbf_group', e.target.value)}
+                        value={editForm.address_details}
+                        onChange={(e) => setFormField('address_details', e.target.value)}
                         className="h-8 text-sm"
-                        placeholder="e.g. Remera HBF"
+                        placeholder="Street, landmark"
                       />
                     </FormField>
                   </div>
+
+                  <FormField label="HBF Group">
+                    <Input
+                      value={editForm.hbf_group}
+                      onChange={(e) => setFormField('hbf_group', e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder="e.g. Remera HBF"
+                    />
+                  </FormField>
 
                   <FormField label="How Found Church / Invited by">
                     <Input
@@ -428,6 +517,21 @@ export default function PersonDetailDrawer({
                       placeholder="e.g. Friend, Outreach"
                     />
                   </FormField>
+
+                  <div className="flex items-center justify-between rounded-md border p-2.5">
+                    <span className="text-xs font-medium">Needs M1 class</span>
+                    <Switch
+                      checked={editNeedsM1}
+                      onCheckedChange={(checked) => setEditNeedsM1(checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-2.5">
+                    <span className="text-xs font-medium">Needs baptism</span>
+                    <Switch
+                      checked={editNeedsBaptism}
+                      onCheckedChange={(checked) => setEditNeedsBaptism(checked)}
+                    />
+                  </div>
                 </div>
 
                 {/* Journey & Follow-up Edit */}
@@ -478,14 +582,13 @@ export default function PersonDetailDrawer({
 
                   <div className="grid grid-cols-2 gap-3">
                     <FormField label="Assigned Follow-up Person">
-                      <Select value={editForm.assigned_to} onValueChange={(v) => setFormField('assigned_to', v ?? '')}>
+                      <Select items={teamItems} value={editForm.assigned_to} onValueChange={(v) => setFormField('assigned_to', v ?? '')}>
                         <SelectTrigger className="h-8 w-full">
                           <SelectValue placeholder="Unassigned" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Unassigned</SelectItem>
-                          {teamMembers.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                          {teamItems.map((m) => (
+                            <SelectItem key={m.value || 'unassigned'} value={m.value}>{m.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -531,21 +634,30 @@ export default function PersonDetailDrawer({
               <>
                 {/* Card 1 — Person Profile */}
                 <div className="border rounded-lg p-4 space-y-3 bg-card">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <h3 className="text-base font-semibold">
                       {p.first_name} {p.last_name}
                     </h3>
-                    <Badge variant="outline" className={categoryColors[p.category] ?? ''}>
-                      {p.category}
-                    </Badge>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {enrolledClass && (
+                        <Badge variant="outline" className="border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                          {enrolledClass.title}
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className={categoryColors[p.category] ?? ''}>
+                        {p.category}
+                      </Badge>
+                    </div>
                   </div>
 
                   <div className="space-y-0.5 border-t pt-2">
                     <DetailRow icon={Phone} label="Phone" value={p.phone ?? '—'} />
+                    <DetailRow icon={Mail} label="Email" value={p.email ?? '—'} />
                     <DetailRow icon={MessageSquare} label="Preferred contact" value={p.contact_preference ?? '—'} />
                     <DetailRow icon={User} label="Gender" value={p.gender ?? '—'} />
                     <DetailRow icon={Users} label="Age Group" value={p.age_group ?? '—'} />
                     <DetailRow icon={MapPin} label="Location" value={p.location ?? '—'} />
+                    <DetailRow icon={MapPin} label="Address details" value={p.address_details ?? '—'} />
                     <DetailRow
                       icon={BookOpen}
                       label="HBF Group"

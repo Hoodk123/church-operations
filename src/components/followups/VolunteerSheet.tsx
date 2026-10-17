@@ -7,6 +7,7 @@ import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince, relativeDays } from '@/lib/dates';
 import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
+import { type SelectOption } from '@/lib/select-items';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -190,6 +191,11 @@ export default function VolunteerSheet({
 
   const otherVolunteers = teamOptions.filter((t) => t.id !== teamId);
 
+  const reassignItems = useMemo<SelectOption[]>(
+    () => otherVolunteers.map((t) => ({ value: t.id, label: t.full_name })),
+    [otherVolunteers]
+  );
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -280,7 +286,7 @@ export default function VolunteerSheet({
 
           <div className="flex flex-col gap-2 border-t p-4">
             <div className="flex items-center gap-2">
-              <Select value="" onValueChange={(v) => v && void reassign(v)}>
+              <Select items={reassignItems} value="" onValueChange={(v) => v && void reassign(v)}>
                 <SelectTrigger
                   className="h-10 flex-1 text-base"
                   disabled={busy || selected.size === 0}
@@ -295,9 +301,9 @@ export default function VolunteerSheet({
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {otherVolunteers.map((t) => (
-                    <SelectItem key={t.id} value={t.id} className="text-base">
-                      {t.full_name}
+                  {reassignItems.map((t) => (
+                    <SelectItem key={t.value} value={t.value} className="text-base">
+                      {t.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

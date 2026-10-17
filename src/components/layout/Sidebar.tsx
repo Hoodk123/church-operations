@@ -14,29 +14,42 @@ export default function Sidebar({ collapsed, role }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'sticky top-14 z-30 hidden h-[calc(100vh-3.5rem)] shrink-0 border-r bg-background transition-all duration-200 md:block',
+        'sticky top-14 z-30 hidden h-[calc(100vh-3.5rem)] shrink-0 border-r bg-background transition-all duration-200 md:block print:hidden',
         collapsed ? 'w-14' : 'w-56'
       )}
     >
       <nav className="flex flex-col gap-1 p-2">
-        {navItems.map((item) => {
+        {navItems.map((item, index) => {
           const active = location.pathname === item.href;
+          const previous = navItems[index - 1];
+          const startsGroup = !!item.group && item.group !== previous?.group;
           return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-muted text-foreground'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
-                collapsed && 'justify-center px-0'
+            <div key={item.href}>
+              {startsGroup && (
+                <div
+                  className={cn(
+                    'px-3 pb-1 pt-4 text-xs font-medium uppercase tracking-wider text-muted-foreground/70',
+                    collapsed && 'sr-only'
+                  )}
+                >
+                  {item.group}
+                </div>
               )}
-              title={collapsed ? item.label : undefined}
-            >
-              <item.icon className="size-4 shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
-            </Link>
+              <Link
+                to={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                  active
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+                  collapsed && 'justify-center px-0'
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <item.icon className="size-4 shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </Link>
+            </div>
           );
         })}
 
