@@ -1,0 +1,57 @@
+#!/bin/sh
+# Blocks data-class files from entering git. Rules: DATA-SOVEREIGNTY.md section 4.
+# - never stage .env / .env.*
+# - never stage dumps (*.dump, *.bak), or files above 5 MB
+# - block *.sql with row INSERTs UNLESS under supabase/migrations/ or prisma/migrations/
+# Skip deliberately with:  CHURCH_COMPLIANCE_SKIP=1 git commit ...   (use sparingly)
+
+if [ "$CHURCH_COMPLIANCE_SKIP" = "1" ]; then
+  echo "[pre-commit] WARNING: compliance hook skipped via CHURCH_COMPLIANCE_SKIP"
+  exit 0
+fi
+
+fail=0
+
+# Staged paths (added/renamed only; deletions are harmless)
+staged_paths() {
+  git diff --cached --name-only --diff-filter=ACMR
+}
+
+for f in $(staged_paths); do
+  case "$f" in
+    .env|*/.env|.env.*|*/.env.*)
+      echo "[pre-commit] BLOCKED: '$f' looks like a secrets file (.env). Never commit secrets." >&2
+      fail=1 ;;
+    *.dump|*/'.dump'|*.bak|*.bak2|*.sql.gz|*.sql.zst|*.backup)
+      echo "[pre-commit] BLOCKED: '$f' looks like a database dump." >&2
+      fail=1 ;;
+  esac
+
+  # Size guard: 5 MiB
+  if [ -f "$f" ]; then
+    sz=$(wc -c < "$f" 2>/dev/null || echo 0)
+    if [ "$sz" -gt 5242880 ]; then
+      echo "[pre-commit] BLOCKED: '$f' is $sz bytes (> 5 MB). Large data files do not belong in git." >&2
+      fail=1
+    fi
+  fi
+
+  # Row INSERTs in SQL outside the migration allowlists
+  case "$f" in
+    *.sql)
+      if [ ! -f "$f" ]; then continue; fi
+      if echo "$f" | grep -Eq '^(supabase/migrations|prisma/migrations)/'; then
+        continue   # allowlist: schema migrations may contain any SQL
+      fi
+      if grep -IqiE '^\s*INSERT\s+INTO\b' "$f"; then
+        echo "[pre-commit] BLOCKED: '$f' is a .sql outside supabase/migrations/ or prisma/migrations/ containing row INSERTs. Real data must not enter git. Put bulk data in a seed script instead." >&2
+        fail=1
+      fi ;;
+  esac
+done
+
+if [ "$fail" = "1" ]; then
+  echo "[pre-commit] Commit refused. Move the data elsewhere (seed scripts, backups) and retry." >&2
+  exit 1
+fi
+exit 0
