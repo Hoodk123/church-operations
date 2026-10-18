@@ -62,9 +62,12 @@ begin
   update public.people
      set last_contact_date = v_last,
          follow_up_status = case
-           when v_finished then 'Completed'
+           when v_finished then 'Completed'::FollowUpStatus
            when follow_up_status in ('Completed', 'Contacted') then
-             case when v_last is null then 'Not Started' else 'Contacted' end
+             case when v_last is null
+                  then 'Not Started'::FollowUpStatus
+                  else 'Contacted'::FollowUpStatus
+             end
            else follow_up_status
          end
    where id = old.person_id;
