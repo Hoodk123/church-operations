@@ -223,7 +223,7 @@ async function main() {
         "Hello {name}, we are so happy about your decision to follow Jesus. We would love to walk with you. When can we meet this week? From {volunteer}.",
       purpose: "follow_up",
       sortOrder: 2,
-      suggestedCategory: "New Convert",
+      suggestedCategory: "NewConvert",
     },
     {
       name: "We missed you",
@@ -238,7 +238,7 @@ async function main() {
         "Hello {name}, our next M1 class is coming up and we would love to see you there. Can we count on you? From {volunteer}.",
       purpose: "follow_up",
       sortOrder: 4,
-      suggestedCategory: "M1 Class",
+      suggestedCategory: "M1Class",
     },
     {
       name: "M1 class reminder",
