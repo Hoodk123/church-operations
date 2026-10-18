@@ -35,7 +35,9 @@ fi
 #    running inside the container (our scripts, psql via docker exec) can use
 #    them.
 PG_HBA="$PGDATA/pg_hba.conf"
-sed -iE 's#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+127\.0\.0\.1/32[[:space:]]+)trust#\1scram-sha-256#; s#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+::1/128[[:space:]]+)trust#\1scram-sha-256#' "$PG_HBA"
+# GNU sed -E may mis-handle side-by-side "s///;s///" with \1 refs, so use two
+# separate -e expressions; each rewrites one trust line to scram-sha-256.
+sed -E -e 's/^(host .*)trust$/\1scram-sha-256/' -i "$PG_HBA"
 
 psql -v ON_ERROR_STOP=1 \
      --username "$POSTGRES_USER" \
