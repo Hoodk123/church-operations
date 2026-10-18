@@ -260,12 +260,12 @@ CREATE TABLE "m1_message_log" (
 
 -- CreateTable
 CREATE TABLE "m1_reply_links" (
-    "token" TEXT NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', ''),
+    "token" TEXT NOT NULL,
     "session_id" UUID NOT NULL,
     "person_id" UUID NOT NULL,
     "created_by" UUID,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "expires_at" TIMESTAMPTZ(6) NOT NULL DEFAULT now() + interval '21 days',
+    "expires_at" TIMESTAMPTZ(6) NOT NULL,
     "used_at" TIMESTAMPTZ(6),
 
     CONSTRAINT "m1_reply_links_pkey" PRIMARY KEY ("token")
