@@ -27,6 +27,12 @@ cd church-operations
 
 From here on, run every command in this document from **this** WSL terminal. Check `pwd` prints `/home/<you>/projects/church-operations` — if it prints `/mnt/c/...` you are in the wrong place.
 
+One more one-time step — git's data-safety hook (it blocks secrets and database dumps from ever being committed) is configured per clone:
+
+```bash
+sh scripts/git-hooks/install.sh
+```
+
 ## 2. Start the database
 
 ```bash
