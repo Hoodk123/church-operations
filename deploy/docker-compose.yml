@@ -1,0 +1,81 @@
+# Development database for church-operations.
+# Only the database runs for now. The API service is added in Phase 3
+# (platform/p3-api) — there is no API code to run yet. The web container
+# comes in Phase 5. Nothing here is production config: production compose
+# lives in a later phase and will NOT publish any port.
+#
+# All 27.x and minor names are never used on purpose: the image below is
+# pinned to an exact version (postgres 17.9, image suite Debian 13 "trixie")
+# so everyone gets the same thing. Docs: docs/local-setup.md.
+
+name: church-operations
+
+services:
+  db:
+    image: postgres:17.9-trixie
+    container_name: church-db
+    restart: unless-stopped
+
+    # DEVELOPMENT ONLY: binding to 127.0.0.1 keeps the port on this one
+    # machine - no other device on the LAN can even see it. In production
+    # (Phase 5) the database has NO published ports at all.
+    # Host port is configurable (PG_PORT in .env, default 5432): on a PC that
+    # ALREADY runs another PostgreSQL (a common leftover), 5432 is taken, so
+    # only the host-side number changes; inside Docker it is still 5432.
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+
+    environment:
+      # ./.env holds real values (never committed). "?" refuses to start
+      # with a missing variable so we never silently run with an empty
+      # password.
+      POSTGRES_DB: ${POSTGRES_DB:?set it in .env (see .env.example)}
+      POSTGRES_USER: ${POSTGRES_USER:?set it in .env (see .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run scripts/gen-secrets.sh}
+      # The church_app runtime role is created by deploy/db/init/01-roles.sql
+      # from this secret; the API in Phase 3 connects with it, never as
+      # church_owner.
+      CHURCH_APP_PASSWORD: ${CHURCH_APP_PASSWORD:?run scripts/gen-secrets.sh}
+      # Timestamps are stored as timestamptz (UTC). TZ only affects how the
+      # init scripts and logs display times. The background job (backup,
+      # nightly dump) is scheduled in Kigali time in Phase 7.
+      TZ: Africa/Kigali
+
+    volumes:
+      # Named volume = the data lives inside Docker's own storage area (in
+      # WSL2), NOT in a bind-mounted Windows folder (C:\...). Windows
+      # bind-mounts are slow and break file permissions.
+      - church_pgdata:/var/lib/postgresql/data
+      # Everything in deploy/db/init runs once, alphabetical order, on the
+      # FIRST start only (empty data directory). Path note: docker compose is
+      # run with --project-directory <repo root> (see scripts/db-up.sh), and
+      # relative bind paths in a compose file resolve against the project
+      # directory, so the path below must be repo-root-relative.
+      - ./deploy/db/init:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      # pg_isready is a light probe that does not log in; it answers "ready"
+      # once the server can accept connections. "start_period" gives the
+      # first database creation time to finish.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+    # Keep the database from eating the whole PC. "shm_size" is Postgres'
+    # /dev/shm: the default of 64 MB is too small for a busy database's
+    # parallel queries and can crash with 'shared memory max connections'.
+    mem_limit: 1g
+    shm_size: 128mb
+
+    logging:
+      # Rotate container logs so a container that has been up for months
+      # cannot grow a log file till the disk is full.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  church_pgdata:
