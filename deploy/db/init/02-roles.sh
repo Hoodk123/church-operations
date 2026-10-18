@@ -26,21 +26,21 @@ if [ "${#CHURCH_APP_PASSWORD}" -lt 24 ]; then
   exit 1
 fi
 
+# 0. Hardening: the official image generates pg_hba.conf with TRUST for
+#    127.0.0.1/::1 (a leftover of first-boot convenience). Anything inside the
+#    container connecting over loopback must still authenticate, so flip those
+#    to scram-sha-256. The catch-all "host all all all scram-sha-256" line
+#    appended by the entrypoint already enforces passwords for every other
+#    address. Unix-socket ("local") lines stay trust ON PURPOSE: only code
+#    running inside the container (our scripts, psql via docker exec) can use
+#    them.
+PG_HBA="$PGDATA/pg_hba.conf"
+sed -iE 's#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+127\.0\.0\.1/32[[:space:]]+)trust#\1scram-sha-256#; s#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+::1/128[[:space:]]+)trust#\1scram-sha-256#' "$PG_HBA"
+
 psql -v ON_ERROR_STOP=1 \
      --username "$POSTGRES_USER" \
      --dbname "$POSTGRES_DB" \
      --set=app_password="$CHURCH_APP_PASSWORD" <<'SQL'
--- 0. Hardening: the official image generates pg_hba.conf with TRUST for
---    127.0.0.1/::1 (a leftover of first-boot convenience). Anything inside
---    the container connecting over loopback must still authenticate, so
---    flip those to scram-sha-256. The catch-all "host all all all
---    scram-sha-256" line appended by the entrypoint already enforces
---    passwords for every non-local address.
-PG_HBA="$PGDATA/pg_hba.conf"
-sed -iE 's#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+127\.0\.0\.1/32[[:space:]]+)trust#\1scram-sha-256#; s#^(host[[:space:]]+(all|replication)[[:space:]]+all[[:space:]]+::1/128[[:space:]]+)trust#\1scram-sha-256#' "$PG_HBA"
-# Unix-socket ("local") lines stay trust ON PURPOSE: only code running
-# inside the container (our scripts, psql via docker exec) can use them.
-
 -- 1. The runtime role. :'app_password' is expanded (and quote-safe) by psql.
 DROP ROLE IF EXISTS church_app;
 CREATE ROLE church_app
