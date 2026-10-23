@@ -333,6 +333,60 @@ async function main(): Promise<void> {
         url: `/api/people/${personId2}`,
         headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
       });
+
+      // ---- Metrics routes (home counters + volunteer overview) ----
+      const metrics = await second.inject({
+        method: "GET",
+        url: "/api/metrics",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(metrics.statusCode, 200);
+      const counts = metrics.json();
+      for (const key of [
+        "attendanceToday",
+        "attendanceLastSunday",
+        "visitorsWeek",
+        "convertsWeek",
+        "contactedWeek",
+        "waitingM1",
+        "needBaptism",
+      ]) {
+        assert.strictEqual(typeof counts[key], "number", `metrics.${key} is a number`);
+      }
+
+      const openList = await second.inject({
+        method: "GET",
+        url: "/api/metrics/people-open",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(openList.statusCode, 200);
+      const openItems = openList.json().items;
+      assert.ok(Array.isArray(openItems));
+      for (const item of openItems) {
+        assert.notStrictEqual(item.followUpStatus, "Completed");
+        assert.ok(item.firstName !== undefined);
+      }
+
+      const volunteers = await second.inject({
+        method: "GET",
+        url: "/api/metrics/volunteers",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(volunteers.statusCode, 200);
+      const validRoles = ["Admin", "Follow-up Coordinator", "Pastor"];
+      for (const item of volunteers.json().items) {
+        assert.ok(item.fullName);
+        assert.strictEqual(typeof item.contactedThisWeek, "number");
+        assert.ok(validRoles.includes(item.role), `role humanized: ${item.role}`);
+      }
+
+      // volunteers overview is Admin-only (the old RPC was gated the same way)
+      const deskVolunteers = await second.inject({
+        method: "GET",
+        url: "/api/metrics/volunteers",
+        headers: { origin: env.APP_ORIGIN, cookie: deskCookie },
+      });
+      assert.strictEqual(deskVolunteers.statusCode, 403);
     } finally {
       await second.close();
     }

@@ -32,6 +32,7 @@ export const ACTIONS = [
   "baptism:read",
   "baptism:write",
   "metrics:read",
+  "metrics:volunteers",
   "templates:read",
   "templates:write",
   "admin:users",
