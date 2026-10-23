@@ -21,7 +21,7 @@ import { createPrisma, type ApiPrisma } from "./db.js";
 import { type Env, loadEnv } from "./env.js";
 import { addStandardRoutes } from "./routes/index.js";
 import { CSRF_COOKIE, SESSION_COOKIE, csrfMatches, resolveSession } from "./auth/session.js";
-import { can, ACTIONS } from "./policy.js";
+import { can, roleName, ACTIONS } from "./policy.js";
 
 const MAX_JSON_DEPTH = 12;
 
@@ -225,7 +225,8 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     // Enforce the action matrix here (docs/09 "Authorization": route without a
     // policy declaration fails startup; routes WITH policies are enforced here).
     const action = config?.action;
-    if (action && !can(session.user.role as Parameters<typeof can>[0], action)) {
+    const role = roleName(session.user.role as string);
+    if (action && (role === "" || !can(role, action))) {
       await audit(prisma, {
         userId: session.user.id,
         action: "auth.denied",
@@ -235,6 +236,7 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
       });
       return deny(reply, 403);
     }
+    req.roleName = role;
   });
 
   // ---- Cache headers ------------------------------------------------------

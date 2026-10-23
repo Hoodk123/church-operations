@@ -8,6 +8,7 @@ import type { FastifyInstance } from "fastify";
 import { audit } from "../audit.js";
 import { newCsrfToken, SESSION_COOKIE, CSRF_COOKIE, startSession, endSession, endAllSessionsExcept } from "../auth/session.js";
 import { hashPassword, verifyPassword, passwordPolicyError } from "../auth/passwords.js";
+import { humanize } from "../lib/enums.js";
 
 const loginSchema = z.object({
   email: z.email().max(200).toLowerCase(),
@@ -120,7 +121,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         message: "login succeeded",
       });
 
-      return { user: { id: user.id, email: user.email, role: user.role }, csrfToken };
+      return { user: { id: user.id, email: user.email, role: humanize("UserRole", user.role) ?? user.role }, csrfToken };
     },
   );
 
@@ -132,7 +133,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(401).send({ error: "unauthorized" });
       }
       return {
-        user: { id: req.user.id, email: req.user.email, role: req.user.role },
+        user: { id: req.user.id, email: req.user.email, role: humanize("UserRole", req.user.role) ?? req.user.role },
         csrfToken: (req.cookies as Record<string, string | undefined>)[CSRF_COOKIE] ?? null,
       };
     },

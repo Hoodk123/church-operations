@@ -10,6 +10,8 @@ declare module "fastify" {
     env: Env;
     user?: SessionUser;
     sessionToken?: string;
+    // Human-readable role name ("Info Desk"), set alongside `user`.
+    roleName?: string;
   }
   interface FastifyContextConfig {
     // Every route MUST declare one of these (startup check in server.ts).

@@ -13,7 +13,7 @@ import type { ApiPrisma } from "../db.js";
 import { audit } from "../audit.js";
 import { currentMember, isoDate, day, pageQuerySchema } from "../lib/route-helpers.js";
 import { normalizeRwandaPhone } from "../lib/phone.js";
-import { asAgeGroup, asBaptismStatus, asCategory, asContactMethod, asContactOutcome, asContactPreference, asFollowUpStatus, asGender, asM1Status } from "../lib/enums.js";
+import { asAgeGroup, asBaptismStatus, asCategory, asContactMethod, asContactOutcome, asContactPreference, asFollowUpStatus, asGender, asM1Status, humanize } from "../lib/enums.js";
 import {
   contactLogCreateSchema,
   personAssignSchema,
@@ -41,12 +41,12 @@ function serializePerson(row: PersonWithNames, includeNotes: boolean): PersonApi
     id: row.id,
     firstName: row.firstName,
     lastName: row.lastName,
-    gender: row.gender,
-    ageGroup: row.ageGroup,
+    gender: humanize("Gender", row.gender) ?? "Male",
+    ageGroup: humanize("AgeGroup", row.ageGroup),
     phone: row.phone,
     location: row.location,
-    category: row.category,
-    m1Status: row.m1Status,
+    category: humanize("Category", row.category),
+    m1Status: humanize("M1Status", row.m1Status),
     hbfGroup: row.hbfGroup,
     howFoundChurch: row.howFoundChurch,
     dateRegistered: day(row.dateRegistered),
@@ -54,11 +54,12 @@ function serializePerson(row: PersonWithNames, includeNotes: boolean): PersonApi
     assignedToName: row.assignee?.fullName ?? null,
     assignedBy: row.assignedBy,
     assignedAt: row.assignedAt ? isoDate(row.assignedAt) : null,
-    followUpStatus: row.followUpStatus,
+    followUpStatus: humanize("FollowUpStatus", row.followUpStatus) ?? "",
+
     needsPastor: row.needsPastor,
     lastContactDate: row.lastContactDate ? day(row.lastContactDate) : null,
-    baptismStatus: row.baptismStatus,
-    contactPreference: row.contactPreference,
+    baptismStatus: humanize("BaptismStatus", row.baptismStatus),
+    contactPreference: humanize("ContactPreference", row.contactPreference),
     email: row.email,
     addressDetails: row.addressDetails,
     needsM1: row.needsM1,
@@ -75,8 +76,8 @@ function serializeContactLog(row: ContactLogWithNames): ContactLogApi {
   return {
     id: row.id,
     personId: row.personId,
-    method: row.method,
-    outcome: row.outcome,
+    method: humanize("ContactMethod", row.method) ?? row.method,
+    outcome: humanize("ContactOutcome", row.outcome) ?? row.outcome,
     note: row.note,
     finished: row.finished,
     contactedAt: isoDate(row.contactedAt),
@@ -159,7 +160,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
           id: row.id,
           firstName: row.firstName,
           lastName: row.lastName,
-          category: row.category,
+    category: humanize("Category", row.category) ?? "",
           createdAt: isoDate(row.createdAt),
           updatedAt: isoDate(row.updatedAt),
           registeredByName: row.registeredByRef?.fullName ?? null,
@@ -177,7 +178,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         orderBy: [{ fullName: "asc" }],
         select: { id: true, fullName: true, role: true },
       });
-      return { items: rows };
+      return { items: rows.map((row) => ({ ...row, role: humanize("UserRole", row.role) ?? row.role })) };
     },
   );
 
@@ -198,7 +199,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         return reply.code(404).send({ error: "not found" });
       }
       const member = await currentMember(req.prisma, req.user!);
-      const includeNotes = mayReadNotes(req.user!.role, row, member?.id ?? null);
+      const includeNotes = mayReadNotes(req.roleName ?? "", row, member?.id ?? null);
       if (includeNotes && row.notes) {
         // Sensitive read: audit every time notes are actually delivered.
         await audit(req.prisma, {
@@ -309,7 +310,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         return reply.code(404).send({ error: "not found" });
       }
       const member = await currentMember(req.prisma, req.user!);
-      if (input.notes !== undefined && !mayWriteNotes(req.user!.role, row, member?.id ?? null)) {
+      if (input.notes !== undefined && !mayWriteNotes(req.roleName ?? "", row, member?.id ?? null)) {
         return reply.code(403).send({ error: "forbidden" });
       }
 
@@ -358,7 +359,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         entityId: row.id,
         message: "person edited",
       });
-      const includeNotes = mayReadNotes(req.user!.role, updated, member?.id ?? null);
+      const includeNotes = mayReadNotes(req.roleName ?? "", updated, member?.id ?? null);
       return serializePerson(updated, includeNotes);
     },
   );
@@ -404,7 +405,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         entityId: row.id,
         message: assignedTo ? "person assigned" : "person unassigned",
       });
-      const includeNotes = mayReadNotes(req.user!.role, updated, member?.id ?? null);
+      const includeNotes = mayReadNotes(req.roleName ?? "", updated, member?.id ?? null);
       return serializePerson(updated, includeNotes);
     },
   );
@@ -436,7 +437,7 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
         entityId: row.id,
         message: "marked as new convert",
       });
-      const includeNotes = mayReadNotes(req.user!.role, updated, member?.id ?? null);
+      const includeNotes = mayReadNotes(req.roleName ?? "", updated, member?.id ?? null);
       return serializePerson(updated, includeNotes);
     },
   );

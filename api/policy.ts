@@ -98,11 +98,29 @@ export function can(role: Role, action: Action): boolean {
   return (MATRIX[role] as readonly string[]).includes(action);
 }
 
+/**
+ * Prisma reads return the internal enum identifier ("FollowUpCoordinator");
+ * the matrix is keyed by the role's DB/display value ("Follow-up Coordinator").
+ * This converts for policy checks. Unknown roles default-deny via "".
+ */
+export function roleName(role: string): Role | "" {
+  switch (role) {
+    case "Admin":
+      return "Admin";
+    case "InfoDesk":
+      return "Info Desk";
+    case "FollowUpCoordinator":
+      return "Follow-up Coordinator";
+    case "Pastor":
+      return "Pastor";
+    default:
+      return "";
+  }
+}
+
 export function requireAction(user: SessionUser, action: Action): void {
-  // The generated UserRole values are the literal role names ("Info Desk",
-  // "Follow-up Coordinator"), stored with mapped DB values; the cast lines
-  // the two representations up.
-  if (!can(user.role as Role, action)) {
+  const role = roleName(user.role as string);
+  if (role === "" || !can(role, action)) {
     const error = new Error("forbidden") as Error & { statusCode?: number };
     error.statusCode = 403;
     throw error;

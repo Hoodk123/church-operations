@@ -1,61 +1,85 @@
-// Enum mapping between wire values (mirrors the DB, e.g. "New Convert") and
-// the generated Prisma enum objects. The zod schemas validate the wire strings;
-// these helpers convert to the generated types so runtime never sends a
-// string Prisma would reject.
-import {
-  AgeGroup,
-  BaptismStatus,
-  Category,
-  ContactMethod,
-  ContactOutcome,
-  ContactPreference,
-  EnrollmentStatus,
-  FollowUpStatus,
-  Gender,
-  M1Status,
-} from "../../src/generated/prisma/client.js";
+// Enum bridge between the wire (the exact DB values the frontend knows, e.g.
+// "New Convert", "Not Started") and the generated Prisma client (its enum
+// values are the CamelCase identifiers, e.g. "NewConvert"; Prisma maps them to
+// the DB values when it writes/reads SQL). Both directions live here so
+// handlers never touch identifiers directly.
+//
+//   enumToClient(kind, wire)  -> before a write   ("New Convert" -> "NewConvert")
+//   enumToWire(kind, client)  -> for a response   ("NotStarted"  -> "Not Started")
+export const ENUM_MAPS = {
+  Gender: { Male: "Male", Female: "Female" },
+  AgeGroup: { Child: "Child", Youth: "Youth", Adult: "Adult", Elderly: "Elderly" },
+  Category: { Visitor: "Visitor", "New Convert": "NewConvert", "M1 Class": "M1Class", Member: "Member", Returning: "Returning", Counseling: "Counseling" },
+  FollowUpStatus: { "Not Started": "NotStarted", Contacted: "Contacted", Met: "Met", Ongoing: "Ongoing", Completed: "Completed" },
+  M1Status: { "Not Started": "NotStarted", "In Progress": "InProgress", Completed: "Completed" },
+  BaptismStatus: { "Not yet": "NotYet", Scheduled: "Scheduled", Baptized: "Baptized" },
+  ContactPreference: { WhatsApp: "WhatsApp", Email: "Email", SMS: "SMS", Call: "Call" },
+  ContactMethod: { Call: "Call", WhatsApp: "WhatsApp", SMS: "SMS", Visit: "Visit", Other: "Other" },
+  ContactOutcome: { Reached: "Reached", "No answer": "NoAnswer", "Scheduled visit": "ScheduledVisit", "Needs pastor": "NeedsPastor", "Wrong number": "WrongNumber" },
+  UserRole: { Admin: "Admin", "Info Desk": "InfoDesk", "Follow-up Coordinator": "FollowUpCoordinator", Pastor: "Pastor" },
+} as const;
 
-type EnumDict = Record<string, string>;
+type MapKind = keyof typeof ENUM_MAPS;
+type ClientValue<K extends MapKind> = (typeof ENUM_MAPS)[K][keyof (typeof ENUM_MAPS)[K]];
+type WireValue<K extends MapKind> = keyof (typeof ENUM_MAPS)[K] & string;
 
-function byValue<T extends EnumDict>(dict: T, value: string): T[keyof T] {
-  const entries = Object.entries(dict) as Array<[keyof T, string]>;
-  for (const [key, candidate] of entries) {
-    if (candidate === value) {
-      return dict[key];
-    }
-  }
-  // Callers get enum values from zod-validated input, so this is unreachable;
-  // fail hard in the unlikely case.
-  throw new Error("internal: enum value not in dictionary");
+export class EnumMappingError extends Error {}
+
+/** Wire value -> generated client value (for writes). */
+export function enumToClient<K extends MapKind>(kind: K, wire: string): ClientValue<K> {
+  const mapped = (ENUM_MAPS[kind] as Record<string, string>)[wire];
+  if (mapped === undefined) throw new EnumMappingError(`unknown ${kind} value`);
+  return mapped as ClientValue<K>;
 }
 
+/** Generated client value -> wire value (for reads). */
+export function enumToWire<K extends MapKind>(kind: K, client: string): WireValue<K> {
+  const dict = ENUM_MAPS[kind] as Record<string, string>;
+  for (const [wire, clientValue] of Object.entries(dict)) {
+    if (clientValue === client) return wire as WireValue<K>;
+  }
+  throw new EnumMappingError(`unknown client value for ${kind}`);
+}
+
+/**
+ * Tolerant response conversion: rows may hold either form (identifiers come
+ * from Prisma reads; older manual values rotate in tests). Unknown values pass
+ * through unchanged instead of failing the request.
+ */
+export function humanize(kind: MapKind, client: string | null | undefined): string | null {
+  if (client === null || client === undefined) return null;
+  try {
+    return enumToWire(kind, client);
+  } catch {
+    return client;
+  }
+}
+
+// Convenience named conversions used across routes.
 export function asCategory(value: string) {
-  return byValue(Category, value);
+  return enumToClient("Category", value);
 }
 export function asFollowUpStatus(value: string) {
-  return byValue(FollowUpStatus, value);
+  return enumToClient("FollowUpStatus", value);
 }
 export function asM1Status(value: string) {
-  return byValue(M1Status, value);
+  return enumToClient("M1Status", value);
 }
 export function asBaptismStatus(value: string) {
-  return byValue(BaptismStatus, value);
+  return enumToClient("BaptismStatus", value);
 }
 export function asGender(value: string) {
-  return byValue(Gender, value);
+  return enumToClient("Gender", value);
 }
 export function asAgeGroup(value: string) {
-  return byValue(AgeGroup, value);
+  return enumToClient("AgeGroup", value);
 }
 export function asContactPreference(value: string) {
-  return byValue(ContactPreference, value);
+  return enumToClient("ContactPreference", value);
 }
 export function asContactMethod(value: string) {
-  return byValue(ContactMethod, value);
+  return enumToClient("ContactMethod", value);
 }
 export function asContactOutcome(value: string) {
-  return byValue(ContactOutcome, value);
-}
-export function asEnrollmentStatus(value: string) {
-  return byValue(EnrollmentStatus, value);
+  return enumToClient("ContactOutcome", value);
 }
