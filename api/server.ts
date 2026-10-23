@@ -248,7 +248,8 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
       return reply.code(401).send({ error: "unauthorized" });
     }
     if (status === 429) {
-      const retryAfter = error.headers?.["Retry-After"] ?? "60";
+      const headers = (error as FastifyError & { headers?: Record<string, string> }).headers;
+      const retryAfter = headers?.["Retry-After"] ?? "60";
       return reply.code(429).header("Retry-After", retryAfter).send({ error: "too many requests" });
     }
     if (status === 403) {
