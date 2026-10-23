@@ -510,6 +510,49 @@ async function main(): Promise<void> {
         url: `/api/people/${unassignedId}`,
         headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
       });
+
+      // ---- Templates (read: everyone; write: Admin only) ----
+      const templateList = await second.inject({
+        method: "GET",
+        url: "/api/templates",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(templateList.statusCode, 200);
+      assert.ok(templateList.json().items.length >= 1, "seed templates present");
+
+      const templateCreate = await second.inject({
+        method: "POST",
+        url: "/api/templates",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { name: `Smoke template ${randomBytes(3).toString("hex")}`, body: "Hello {name}, smoke test.", suggestedCategory: "Visitor", sortOrder: 99, active: true },
+      });
+      assert.strictEqual(templateCreate.statusCode, 201);
+      const templateId = templateCreate.json().id;
+      assert.strictEqual(templateCreate.json().suggestedCategory, "Visitor");
+
+      const templateEdit = await second.inject({
+        method: "PATCH",
+        url: `/api/templates/${templateId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { body: "Hello {name}, updated.", active: false },
+      });
+      assert.strictEqual(templateEdit.statusCode, 200);
+      assert.strictEqual(templateEdit.json().active, false);
+
+      const deskTemplateWrite = await second.inject({
+        method: "POST",
+        url: "/api/templates",
+        headers: { ...peopleHeaders, cookie: deskCookie, "x-csrf-token": deskCsrf },
+        payload: { name: "Desk template", body: "nope" },
+      });
+      assert.strictEqual(deskTemplateWrite.statusCode, 403);
+
+      const templateDelete = await second.inject({
+        method: "DELETE",
+        url: `/api/templates/${templateId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(templateDelete.statusCode, 204);
     } finally {
       await second.close();
     }

@@ -7,6 +7,7 @@ import { registerAuthRoutes } from "./auth.js";
 import { registerPeopleRoutes } from "./people.js";
 import { registerCheckInRoutes } from "./checkin.js";
 import { registerBoardRoutes } from "./board.js";
+import { registerTemplateRoutes } from "./templates.js";
 import { registerMetricsRoutes } from "./metrics.js";
 
 export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
@@ -15,5 +16,6 @@ export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerPeopleRoutes(app);
   await registerCheckInRoutes(app);
   await registerBoardRoutes(app);
+  await registerTemplateRoutes(app);
   await registerMetricsRoutes(app);
 }
