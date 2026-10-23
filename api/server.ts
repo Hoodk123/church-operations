@@ -86,10 +86,10 @@ function deny(reply: FastifyReply, status: number, body: Record<string, string> 
   return reply.code(status).send(body);
 }
 
-function throwWithStatus(status: number, message: string): never {
+function statusError(status: number, message: string): Error & { statusCode?: number } {
   const error = new Error(message) as Error & { statusCode?: number };
   error.statusCode = status;
-  throw error;
+  return error;
 }
 
 export async function buildServer(options: BuildOptions = {}): Promise<FastifyInstance> {
@@ -127,10 +127,10 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     try {
       parsed = body === "" ? {} : (JSON.parse(body as string) as unknown);
     } catch {
-      return done(throwWithStatus(400, "body must be valid JSON"));
+      return done(statusError(400, "body must be valid JSON"), undefined);
     }
     if (jsonDepth(parsed) > MAX_JSON_DEPTH) {
-      return done(throwWithStatus(400, "body nesting too deep"));
+      return done(statusError(400, "body nesting too deep"), undefined);
     }
     return done(null, parsed);
   });
