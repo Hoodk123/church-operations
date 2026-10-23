@@ -99,7 +99,10 @@ export function can(role: Role, action: Action): boolean {
 }
 
 export function requireAction(user: SessionUser, action: Action): void {
-  if (!can(user.role, action)) {
+  // The generated UserRole values are the literal role names ("Info Desk",
+  // "Follow-up Coordinator"), stored with mapped DB values; the cast lines
+  // the two representations up.
+  if (!can(user.role as Role, action)) {
     const error = new Error("forbidden") as Error & { statusCode?: number };
     error.statusCode = 403;
     throw error;
