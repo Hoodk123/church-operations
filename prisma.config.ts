@@ -18,6 +18,12 @@ const url =
   process.env.DATABASE_URL ??
   `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@127.0.0.1:${port}/${db}`;
 
+// Temporary databases for "migrate dev" / "migrate diff --from-migrations"
+// are created on this server (same machine, owner role). Nothing is stored.
+const shadowUrl =
+  process.env.SHADOW_DATABASE_URL ??
+  `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@127.0.0.1:${port}/postgres`;
+
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
@@ -26,5 +32,6 @@ export default defineConfig({
   },
   datasource: {
     url,
+    shadowDatabaseUrl: shadowUrl,
   },
 });

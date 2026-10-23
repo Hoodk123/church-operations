@@ -262,6 +262,7 @@ model Sessions {
   id String @id @db.Text // hashed session id (docs/09: store hashed)
   userId String @map("user_id") @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  lastSeenAt DateTime @default(now()) @db.Timestamptz(6) @map("last_seen_at") // idle timeout (Phase 3)
   expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
   ipHash String? @db.Text @map("ip_hash")
   userAgent String? @db.Text @map("user_agent")
