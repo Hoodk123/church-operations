@@ -161,11 +161,15 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     global: true,
     max: 300,
     timeWindow: "1 minute",
-    errorResponseBuilder: (_req, context) => ({
-      code: 429,
-      error: "Too Many Requests",
-      retryAfter: context.after,
-    }),
+    errorResponseBuilder: (_req, context) => {
+      const error = new Error(`Rate limit exceeded, retry in ${context.after}`) as Error & {
+        statusCode?: number;
+        headers?: Record<string, string>;
+      };
+      error.statusCode = 429;
+      error.headers = { "Retry-After": String(context.after) };
+      return error;
+    },
     addHeaders: {
       "retry-after": true,
     },
@@ -242,6 +246,10 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     }
     if (status === 401) {
       return reply.code(401).send({ error: "unauthorized" });
+    }
+    if (status === 429) {
+      const retryAfter = error.headers?.["Retry-After"] ?? "60";
+      return reply.code(429).header("Retry-After", retryAfter).send({ error: "too many requests" });
     }
     if (status === 403) {
       void audit(prisma, {
