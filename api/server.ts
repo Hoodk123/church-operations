@@ -98,7 +98,6 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
 
   const app = Fastify({
     bodyLimit: 100 * 1024,
-    disableRequestLogging: false,
     trustProxy: false,
     logger: {
       level: env.CHURCH_ENV === "production" ? "warn" : "info",
