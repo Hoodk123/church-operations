@@ -40,6 +40,11 @@ async function main(): Promise<void> {
       where: { email: "desk@church.test" },
       data: { passwordHash: deskHash, failedLoginCount: 0, lockedUntil: null, active: true },
     });
+    const coordPassword = randomBytes(18).toString("base64url");
+    await prisma.users.update({
+      where: { email: "coordinator@church.test" },
+      data: { passwordHash: await hashPassword(coordPassword), failedLoginCount: 0, lockedUntil: null, active: true },
+    });
 
     // 1) wrong password -> constant 401
     const bad = await app.inject({
@@ -387,6 +392,94 @@ async function main(): Promise<void> {
         headers: { origin: env.APP_ORIGIN, cookie: deskCookie },
       });
       assert.strictEqual(deskVolunteers.statusCode, 403);
+
+      // ---- Board routes (read + move with row scope) ----
+      const boardPerson = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: personBase,
+      });
+      assert.strictEqual(boardPerson.statusCode, 201);
+      const boardPersonId = boardPerson.json().id;
+
+      const boardList = await second.inject({
+        method: "GET",
+        url: "/api/board",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(boardList.statusCode, 200);
+      assert.ok(boardList.json().items.some((p: { id: string }) => p.id === boardPersonId));
+
+      const invalidMove = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/follow-up-status`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { followUpStatus: "Unknown" },
+      });
+      assert.strictEqual(invalidMove.statusCode, 400);
+
+      const moved = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/follow-up-status`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { followUpStatus: "Contacted" },
+      });
+      assert.strictEqual(moved.statusCode, 200);
+      assert.strictEqual(moved.json().followUpStatus, "Contacted");
+
+      // Info Desk has no board:move (policy denies)...
+      const deskMove = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/follow-up-status`,
+        headers: { ...peopleHeaders, cookie: deskCookie, "x-csrf-token": deskCsrf },
+        payload: { followUpStatus: "Met" },
+      });
+      assert.strictEqual(deskMove.statusCode, 403);
+
+      // ...and the coordinator may move only people assigned to them.
+      const coordLogin = await second.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: peopleHeaders,
+        payload: { email: "coordinator@church.test", password: coordPassword },
+      });
+      assert.strictEqual(coordLogin.statusCode, 200);
+      const coordSession = coordLogin.cookies.find((c) => c.name === "ch_sess")?.value ?? "";
+      const coordCsrf = coordLogin.cookies.find((c) => c.name === "ch_csrf")?.value ?? "";
+      const coordCookie = `ch_sess=${coordSession}; ch_csrf=${coordCsrf}`;
+
+      // unassigned -> forbidden
+      const coordMoveUnassigned = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/follow-up-status`,
+        headers: { ...peopleHeaders, cookie: coordCookie, "x-csrf-token": coordCsrf },
+        payload: { followUpStatus: "Met" },
+      });
+      assert.strictEqual(coordMoveUnassigned.statusCode, 403);
+
+      // assigned to the coordinator -> allowed
+      const assignToCoord = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/assign`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { assignedTo: (await prisma.teamMembers.findFirst({ where: { role: "FollowUpCoordinator" } }))?.id },
+      });
+      assert.strictEqual(assignToCoord.statusCode, 200);
+      const coordMoveAssigned = await second.inject({
+        method: "PATCH",
+        url: `/api/people/${boardPersonId}/follow-up-status`,
+        headers: { ...peopleHeaders, cookie: coordCookie, "x-csrf-token": coordCsrf },
+        payload: { followUpStatus: "Met" },
+      });
+      assert.strictEqual(coordMoveAssigned.statusCode, 200);
+      assert.strictEqual(coordMoveAssigned.json().followUpStatus, "Met");
+
+      await second.inject({
+        method: "DELETE",
+        url: `/api/people/${boardPersonId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
     } finally {
       await second.close();
     }

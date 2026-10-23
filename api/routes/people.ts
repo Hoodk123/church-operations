@@ -27,7 +27,7 @@ import {
 type PersonWithNames = Prisma.PeopleGetPayload<{ include: typeof PERSON_INCLUDE }>;
 type ContactLogWithNames = Prisma.ContactLogGetPayload<{ include: typeof CONTACT_LOG_INCLUDE }>;
 
-const PERSON_INCLUDE = {
+export const PERSON_INCLUDE = {
   assignee: { select: { fullName: true } },
   registeredByRef: { select: { fullName: true } },
 } as const;
@@ -36,7 +36,7 @@ const CONTACT_LOG_INCLUDE = {
   contactedByRef: { select: { fullName: true } },
 } as const;
 
-function serializePerson(row: PersonWithNames, includeNotes: boolean): PersonApi & { notes?: string | null } {
+export function serializePerson(row: PersonWithNames, includeNotes: boolean): PersonApi & { notes?: string | null } {
   return {
     id: row.id,
     firstName: row.firstName,
