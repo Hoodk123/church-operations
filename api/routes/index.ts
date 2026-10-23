@@ -4,8 +4,10 @@
 import type { FastifyInstance } from "fastify";
 import { registerHealthRoutes } from "./health.js";
 import { registerAuthRoutes } from "./auth.js";
+import { registerPeopleRoutes } from "./people.js";
 
 export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerHealthRoutes(app);
   await registerAuthRoutes(app);
+  await registerPeopleRoutes(app);
 }

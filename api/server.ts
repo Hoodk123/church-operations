@@ -21,7 +21,7 @@ import { createPrisma, type ApiPrisma } from "./db.js";
 import { type Env, loadEnv } from "./env.js";
 import { addStandardRoutes } from "./routes/index.js";
 import { CSRF_COOKIE, SESSION_COOKIE, csrfMatches, resolveSession } from "./auth/session.js";
-import { ACTIONS } from "./policy.js";
+import { can, ACTIONS } from "./policy.js";
 
 const MAX_JSON_DEPTH = 12;
 
@@ -206,9 +206,10 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     }
   });
 
-  // ---- Session resolution -------------------------------------------------
+  // ---- Session resolution + authorization ---------------------------------
   app.addHook("preHandler", async (req, reply) => {
-    const access = req.routeOptions.config?.access;
+    const config = req.routeOptions.config;
+    const access = config?.access;
     if (access !== "auth") return;
     const token = (req.cookies as Record<string, string | undefined>)[SESSION_COOKIE];
     if (!token) {
@@ -221,6 +222,19 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     }
     req.user = session.user;
     req.sessionToken = session.token;
+    // Enforce the action matrix here (docs/09 "Authorization": route without a
+    // policy declaration fails startup; routes WITH policies are enforced here).
+    const action = config?.action;
+    if (action && !can(session.user.role as Parameters<typeof can>[0], action)) {
+      await audit(prisma, {
+        userId: session.user.id,
+        action: "auth.denied",
+        entity: "route",
+        entityId: null,
+        message: `action denied: ${action}`,
+      });
+      return deny(reply, 403);
+    }
   });
 
   // ---- Cache headers ------------------------------------------------------
