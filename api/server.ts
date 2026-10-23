@@ -183,17 +183,16 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
   // double-submit CSRF header that matches the CSRF cookie.
   app.addHook("onRequest", async (req, reply) => {
     const access = req.routeOptions.config?.access;
-    if (process.env.DEBUG_GATE === "1") {
-      console.error("GATE", req.method, req.url, JSON.stringify(req.routeOptions.config ?? null));
-    }
     if (access === undefined) return; // startup check will fail the boot
     if (!isUnsafeMethod(req.method)) return;
+    // The browser always sends Origin on unsafe methods; server-to-server
+    // integrations must state an allowed origin too (there are none planned
+    // beyond the app itself). A missing or foreign origin is denied here.
     const origin = requestOrigin(req);
-    if (origin !== null && !originAllowed(origin, env)) {
+    if (origin === null || !originAllowed(origin, env)) {
       return deny(reply, 403);
     }
     if (access === "auth") {
-      if (origin === null) return deny(reply, 403);
       const cookieToken = (req.cookies as Record<string, string | undefined>)[CSRF_COOKIE];
       const headerToken = Array.isArray(req.headers["x-csrf-token"])
         ? req.headers["x-csrf-token"][0]
