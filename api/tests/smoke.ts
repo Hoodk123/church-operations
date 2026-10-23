@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import assert from "node:assert";
 import type { FastifyInstance } from "fastify";
 import { buildServer } from "../server.js";
+import { createPrisma } from "../db.js";
 import { hashPassword } from "../auth/passwords.js";
 import { loadEnv } from "../env.js";
 
@@ -22,13 +23,14 @@ function cookieValue(setCookie: string | readonly string[], name: string): strin
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  const app = await buildServer({ env });
+  const prisma = createPrisma(env);
+  const app = await buildServer({ env, prisma });
 
   try {
     // Give the seeded fake Admin a throwaway password for this process only.
     const password = randomBytes(18).toString("base64url");
     const hash = await hashPassword(password);
-    await app.prisma.users.update({
+    await prisma.users.update({
       where: { email: ADMIN_EMAIL },
       data: { passwordHash: hash, failedLoginCount: 0, lockedUntil: null, active: true },
     });
@@ -165,18 +167,17 @@ async function main(): Promise<void> {
       assert.strictEqual(deep.statusCode, 400);
     } finally {
       await second.close();
-      await second.prisma.$disconnect();
     }
 
     console.log("SMOKE OK");
   } finally {
     // Restore clean lock state for the fake account.
-    await app.prisma.users.update({
+    await prisma.users.update({
       where: { email: ADMIN_EMAIL },
       data: { failedLoginCount: 0, lockedUntil: null },
     }).catch(() => {});
     await app.close();
-    await app.prisma.$disconnect();
+    await prisma.$disconnect();
   }
 }
 
