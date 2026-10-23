@@ -45,7 +45,8 @@ function serializePerson(row: PersonWithNames, includeNotes: boolean): PersonApi
     ageGroup: humanize("AgeGroup", row.ageGroup),
     phone: row.phone,
     location: row.location,
-    category: humanize("Category", row.category),
+    category: humanize("Category", row.category) ?? "",
+
     m1Status: humanize("M1Status", row.m1Status),
     hbfGroup: row.hbfGroup,
     howFoundChurch: row.howFoundChurch,
