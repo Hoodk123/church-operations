@@ -34,6 +34,12 @@ async function main(): Promise<void> {
       where: { email: ADMIN_EMAIL },
       data: { passwordHash: hash, failedLoginCount: 0, lockedUntil: null, active: true },
     });
+    const deskPassword = randomBytes(18).toString("base64url");
+    const deskHash = await hashPassword(deskPassword);
+    await prisma.users.update({
+      where: { email: "desk@church.test" },
+      data: { passwordHash: deskHash, failedLoginCount: 0, lockedUntil: null, active: true },
+    });
 
     // 1) wrong password -> constant 401
     const bad = await app.inject({
@@ -165,6 +171,168 @@ async function main(): Promise<void> {
         payload: JSON.stringify(payload),
       });
       assert.strictEqual(deep.statusCode, 400);
+
+      // ---- People flow on the fully built server (people.features) ----
+      const peopleHeaders = {
+        origin: env.APP_ORIGIN,
+        "content-type": "application/json",
+      };
+      const personBase = {
+        firstName: "Smoke",
+        lastName: `Person${randomBytes(3).toString("hex")}`,
+        gender: "Male",
+        phone: "+250788000111",
+        location: "Kigali",
+        category: "Visitor",
+        followUpStatus: "Not Started",
+        needsPastor: false,
+        needsM1: false,
+        needsBaptism: false,
+      };
+
+      const secondLogin = await second.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: peopleHeaders,
+        payload: { email: ADMIN_EMAIL, password },
+      });
+      assert.strictEqual(secondLogin.statusCode, 200);
+      const adminSession = secondLogin.cookies.find((c) => c.name === "ch_sess")?.value ?? "";
+      const adminCsrf = secondLogin.cookies.find((c) => c.name === "ch_csrf")?.value ?? "";
+      const adminCookie = `ch_sess=${adminSession}; ch_csrf=${adminCsrf}`;
+
+      // invalid phone -> 400
+      const badPhone = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { ...personBase, phone: "12345" },
+      });
+      assert.strictEqual(badPhone.statusCode, 400);
+
+      // create -> 201
+      const created = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: personBase,
+      });
+      assert.strictEqual(created.statusCode, 201);
+      const person = created.json();
+      assert.strictEqual(person.notes, undefined);
+      assert.ok(person.id);
+
+      // duplicate phone -> 409
+      const dup = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: personBase,
+      });
+      assert.strictEqual(dup.statusCode, 409);
+
+      // list contains the person
+      const listed = await second.inject({
+        method: "GET",
+        url: "/api/people?limit=1&offset=0",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(listed.statusCode, 200);
+      assert.ok(listed.json().total >= 1);
+      assert.ok(listed.json().items[0].createdAt);
+
+      // edit: notes; assign to Pastor member? leave unassigned; contact log ->
+      // trigger moves follow_up_status to "Contacted" and stamps last_contact_date
+      const logged = await second.inject({
+        method: "POST",
+        url: `/api/people/${person.id}/contact-log`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { method: "Call", outcome: "Reached", note: "smoke log", finished: false },
+      });
+      assert.strictEqual(logged.statusCode, 200);
+      const detail = await second.inject({
+        method: "GET",
+        url: `/api/people/${person.id}`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(detail.statusCode, 200);
+      const afterLog = detail.json();
+      assert.strictEqual(afterLog.person.followUpStatus, "Contacted");
+      assert.ok(afterLog.person.lastContactDate, "last contact date stamped");
+      assert.strictEqual(afterLog.contactLogs.length, 1);
+      assert.strictEqual(afterLog.contactLogs[0].outcome, "Reached");
+
+      // deleting the log entry must recompute the person (trigger `revert`)
+      await prisma.contactLog.deleteMany({ where: { personId: person.id } });
+      const afterRevert = await second.inject({
+        method: "GET",
+        url: `/api/people/${person.id}`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(afterRevert.json().person.followUpStatus, "Not Started");
+
+      // mark new convert sets category + needs_pastor
+      const marked = await second.inject({
+        method: "POST",
+        url: `/api/people/${person.id}/mark-new-convert`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(marked.statusCode, 200);
+      assert.strictEqual(marked.json().category, "New Convert");
+      assert.strictEqual(marked.json().needsPastor, true);
+
+      // erase person (admin only)
+      const erased = await second.inject({
+        method: "DELETE",
+        url: `/api/people/${person.id}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(erased.statusCode, 204);
+
+      // Info Desk must not see notes, Admin must
+      const deskLogin = await second.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        headers: peopleHeaders,
+        payload: { email: "desk@church.test", password: deskPassword },
+      });
+      assert.strictEqual(deskLogin.statusCode, 200);
+      const deskSession = deskLogin.cookies.find((c) => c.name === "ch_sess")?.value ?? "";
+      const deskCsrf = deskLogin.cookies.find((c) => c.name === "ch_csrf")?.value ?? "";
+      const deskCookie = `ch_sess=${deskSession}; ch_csrf=${deskCsrf}`;
+
+      const created2 = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { ...personBase, notes: "confidential note" },
+      });
+      assert.strictEqual(created2.statusCode, 201);
+      const personId2 = created2.json().id;
+      assert.strictEqual(created2.json().notes, undefined);
+      const adminDetail = await second.inject({
+        method: "GET",
+        url: `/api/people/${personId2}`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(adminDetail.json().person.notes, "confidential note");
+      const deskDetail = await second.inject({
+        method: "GET",
+        url: `/api/people/${personId2}`,
+        headers: { origin: env.APP_ORIGIN, cookie: deskCookie },
+      });
+      assert.strictEqual(deskDetail.json().person.notes, undefined);
+      const deskErase = await second.inject({
+        method: "DELETE",
+        url: `/api/people/${personId2}`,
+        headers: { ...peopleHeaders, cookie: deskCookie, "x-csrf-token": deskCsrf },
+      });
+      assert.strictEqual(deskErase.statusCode, 403);
+      await second.inject({
+        method: "DELETE",
+        url: `/api/people/${personId2}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
     } finally {
       await second.close();
     }
