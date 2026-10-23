@@ -10,6 +10,7 @@ export type Role = "Admin" | "Info Desk" | "Follow-up Coordinator" | "Pastor";
 export const ACTIONS = [
   "checkin:read",
   "checkin:create",
+  "checkin:undo",
   "attendance:read",
   "attendance:tick",
   "people:read",
@@ -51,6 +52,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
   "Info Desk": [
     "checkin:read",
     "checkin:create",
+    "checkin:undo",
     "attendance:read",
     "attendance:tick",
     "people:read",
