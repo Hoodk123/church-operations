@@ -480,6 +480,36 @@ async function main(): Promise<void> {
         url: `/api/people/${boardPersonId}`,
         headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
       });
+      // ---- Bulk assign (Attention page flow) ----
+      const unassignedPerson = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: personBase,
+      });
+      assert.strictEqual(unassignedPerson.statusCode, 201);
+      const unassignedId = unassignedPerson.json().id;
+      const coordId = (await prisma.teamMembers.findFirst({ where: { role: "FollowUpCoordinator" } }))?.id ?? "";
+      const bulkAssigned = await second.inject({
+        method: "PATCH",
+        url: "/api/people/bulk-assign",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { ids: [unassignedId], assignedTo: coordId },
+      });
+      assert.strictEqual(bulkAssigned.statusCode, 200);
+      assert.strictEqual(bulkAssigned.json().updated, 1);
+      const assignedRow = await prisma.people.findUnique({
+        where: { id: unassignedId },
+        select: { assignedTo: true, assignedBy: true, assignedAt: true },
+      });
+      assert.strictEqual(assignedRow?.assignedTo, coordId);
+      assert.ok(assignedRow?.assignedBy, "assignedBy stamped");
+      assert.ok(assignedRow?.assignedAt, "assignedAt stamped by trigger");
+      await second.inject({
+        method: "DELETE",
+        url: `/api/people/${unassignedId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
     } finally {
       await second.close();
     }

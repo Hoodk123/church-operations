@@ -15,6 +15,7 @@ import { currentMember, isoDate, day, pageQuerySchema } from "../lib/route-helpe
 import { normalizeRwandaPhone } from "../lib/phone.js";
 import { asAgeGroup, asBaptismStatus, asCategory, asContactMethod, asContactOutcome, asContactPreference, asFollowUpStatus, asGender, asM1Status, humanize } from "../lib/enums.js";
 import {
+  bulkAssignSchema,
   contactLogCreateSchema,
   personAssignSchema,
   personCreateSchema,
@@ -408,6 +409,42 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
       });
       const includeNotes = mayReadNotes(req.roleName ?? "", updated, member?.id ?? null);
       return serializePerson(updated, includeNotes);
+    },
+  );
+
+  // ---- Bulk assign (Attention page) -------------------------------------------
+  app.patch(
+    "/api/people/bulk-assign",
+    { config: { access: "auth", action: "people:assign" } },
+    async (req, reply) => {
+      const parsed = bulkAssignSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "invalid bulk assign body" });
+      }
+      const { ids, assignedTo } = parsed.data;
+      if (assignedTo) {
+        const target = await req.prisma.teamMembers.findUnique({ where: { id: assignedTo }, select: { id: true } });
+        if (!target) {
+          return reply.code(400).send({ error: "unknown assignee" });
+        }
+      }
+      const member = await currentMember(req.prisma, req.user!);
+      // The stamp_assignment trigger stamps assigned_at per changed row.
+      const result = await req.prisma.people.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          assignedTo: assignedTo ?? null,
+          assignedBy: assignedTo ? (member?.id ?? null) : null,
+        },
+      });
+      await audit(req.prisma, {
+        userId: req.user!.id,
+        action: "people.bulk_assign",
+        entity: "people",
+        entityId: null,
+        message: assignedTo ? "people bulk assigned" : "people bulk unassigned",
+      });
+      return { updated: result.count };
     },
   );
 

@@ -74,6 +74,12 @@ export const personAssignSchema = z.object({
   assignedTo: z.uuid().nullish().transform((v) => (v === undefined ? undefined : (v ?? null))),
 });
 
+// Bulk assign (Attention page): one volunteer, many people at once.
+export const bulkAssignSchema = z.object({
+  ids: z.array(z.uuid()).min(1).max(100),
+  assignedTo: z.uuid().nullish().transform((v) => (v === undefined ? undefined : (v ?? null))),
+});
+
 export const contactLogCreateSchema = z.object({
   method: z.enum(["Call", "WhatsApp", "SMS", "Visit", "Other"]),
   outcome: z.enum(["Reached", "No answer", "Scheduled visit", "Needs pastor", "Wrong number"]),
