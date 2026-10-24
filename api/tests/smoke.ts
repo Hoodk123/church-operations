@@ -553,6 +553,173 @@ async function main(): Promise<void> {
         headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
       });
       assert.strictEqual(templateDelete.statusCode, 204);
+
+      // ---- M1 core flow: class, sessions, enroll, tick, close, waiting list ----
+      function nextSunday(): string {
+        const now = new Date();
+        const target = new Date(now);
+        const daysUntilSunday = (7 - now.getDay()) % 7 || 7;
+        target.setDate(now.getDate() + daysUntilSunday);
+        return target.toISOString().slice(0, 10);
+      }
+      const m1Create = await second.inject({
+        method: "POST",
+        url: "/api/m1/classes",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { title: "Smoke M1", venue: "Church hall", requiredDays: 2, startTime: "17:00", firstDate: nextSunday() },
+      });
+      assert.strictEqual(m1Create.statusCode, 201);
+      const m1ClassId = m1Create.json().id;
+
+      const m1Sessions = await second.inject({
+        method: "GET",
+        url: `/api/m1/classes/${m1ClassId}/sessions`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(m1Sessions.statusCode, 200);
+      assert.strictEqual(m1Sessions.json().items.length, 2);
+      const sessionId1 = m1Sessions.json().items[0].id;
+      assert.strictEqual(m1Sessions.json().items[0].startTime, "17:00");
+
+      // desk may not create a class (Admin-only action)
+      const deskClassCreate = await second.inject({
+        method: "POST",
+        url: "/api/m1/classes",
+        headers: { ...peopleHeaders, cookie: deskCookie, "x-csrf-token": deskCsrf },
+        payload: { title: "nope", requiredDays: 1, firstDate: nextSunday() },
+      });
+      assert.strictEqual(deskClassCreate.statusCode, 403);
+
+      // waiting list contains the coordinator's earlier board person? No — create one.
+      const m1Person = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { ...personBase, phone: `+2507880${Math.floor(Math.random() * 100000).toString().padStart(5, "0")}`, needsM1: true },
+      });
+      assert.strictEqual(m1Person.statusCode, 201);
+      const m1PersonId = m1Person.json().id;
+      const waiting = await second.inject({
+        method: "GET",
+        url: "/api/m1/waiting-list",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(waiting.statusCode, 200);
+      assert.ok(waiting.json().items.some((p: { id: string }) => p.id === m1PersonId));
+
+      const enrolled = await second.inject({
+        method: "POST",
+        url: `/api/m1/classes/${m1ClassId}/enrollments`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { personId: m1PersonId },
+      });
+      assert.strictEqual(enrolled.statusCode, 201);
+      assert.strictEqual((await prisma.people.findUnique({ where: { id: m1PersonId }, select: { needsM1: true } }))?.needsM1, false);
+
+      const enrollments = await second.inject({
+        method: "GET",
+        url: `/api/m1/classes/${m1ClassId}/enrollments`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(enrollments.statusCode, 200);
+      assert.strictEqual(enrollments.json().items.length, 1);
+      const enrollmentId = enrollments.json().items[0].id;
+
+      // tick Present on day 1, then tick + Present on day 2, close day 2
+      const tick1 = await second.inject({
+        method: "PATCH",
+        url: `/api/m1/sessions/${sessionId1}/attendance`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { personId: m1PersonId, status: "Present" },
+      });
+      assert.strictEqual(tick1.statusCode, 200);
+      const sessionId2 = m1Sessions.json().items[1].id;
+      const tick2 = await second.inject({
+        method: "PATCH",
+        url: `/api/m1/sessions/${sessionId2}/attendance`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { personId: m1PersonId, status: "Present" },
+      });
+      assert.strictEqual(tick2.statusCode, 200);
+      const closed = await second.inject({
+        method: "POST",
+        url: `/api/m1/sessions/${sessionId2}/close`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(closed.statusCode, 200);
+      assert.strictEqual(closed.json().closed, true);
+
+      // ticking a closed day is Admin-only (make-ups)
+      const deskTickClosed = await second.inject({
+        method: "PATCH",
+        url: `/api/m1/sessions/${sessionId2}/attendance`,
+        headers: { ...peopleHeaders, cookie: deskCookie, "x-csrf-token": deskCsrf },
+        payload: { personId: m1PersonId, status: "Excused" },
+      });
+      assert.strictEqual(deskTickClosed.statusCode, 403);
+
+      // present count cleared required_days (2) -> enrollment completed on close
+      const afterClose = await second.inject({
+        method: "GET",
+        url: `/api/m1/classes/${m1ClassId}/enrollments`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(afterClose.json().items[0].status, "Completed");
+
+      // certificates: already issued via close? No — close sets status, not
+      // certificate. Issue one for the completed enrollment.
+      const certs = await second.inject({
+        method: "POST",
+        url: "/api/m1/certificates",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { enrollmentIds: [enrollmentId] },
+      });
+      assert.strictEqual(certs.statusCode, 200);
+      assert.strictEqual(certs.json().issued, 1);
+      const certRow = await prisma.m1Enrollments.findUnique({ where: { id: enrollmentId }, select: { certificateNo: true } });
+      assert.ok(certRow?.certificateNo?.startsWith("M1-"));
+
+      // a second person enrolled but never ticked: unfinished
+      const m1Person2 = await second.inject({
+        method: "POST",
+        url: "/api/people",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { ...personBase, lastName: `Person${randomBytes(3).toString("hex")}`, phone: `+2507880${Math.floor(Math.random() * 100000).toString().padStart(5, "0")}`, needsM1: true },
+      });
+      assert.strictEqual(m1Person2.statusCode, 201);
+      const m1Person2Id = m1Person2.json().id;
+      const enrolled2 = await second.inject({
+        method: "POST",
+        url: `/api/m1/classes/${m1ClassId}/enrollments`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { personId: m1Person2Id, walkIn: true },
+      });
+      assert.strictEqual(enrolled2.statusCode, 201);
+
+      // delete the class: the unfinished person returns to "Needs M1"; the
+      // completed one keeps their status (old delete_m1_class rule).
+      const classDelete = await second.inject({
+        method: "DELETE",
+        url: `/api/m1/classes/${m1ClassId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(classDelete.statusCode, 204);
+      const m1PersonRow = await prisma.people.findUnique({ where: { id: m1PersonId }, select: { m1Status: true, needsM1: true } });
+      assert.strictEqual(m1PersonRow?.needsM1, false);
+      assert.strictEqual(m1PersonRow?.m1Status, "Completed");
+      const m1Person2Row = await prisma.people.findUnique({ where: { id: m1Person2Id }, select: { needsM1: true } });
+      assert.strictEqual(m1Person2Row?.needsM1, true);
+
+      await second.inject({
+        method: "DELETE",
+        url: `/api/people/${m1PersonId}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      await second.inject({
+        method: "DELETE",
+        url: `/api/people/${m1Person2Id}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
     } finally {
       await second.close();
     }
