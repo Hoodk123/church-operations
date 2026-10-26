@@ -1,6 +1,7 @@
 // Phase 3, foundation: validated environment. The API refuses to start when
 // anything is missing or weak (docs/09 "Config": validated env at startup).
 // Personal-data rule: values here are never logged.
+import { createHash } from "node:crypto";
 import "dotenv/config";
 import { z } from "zod";
 
@@ -21,6 +22,7 @@ const envSchema = z
     SESSION_IDLE_HOURS: z.coerce.number().int().min(1).max(48).default(8),
     SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(72).default(24),
     UPLOAD_DIR: z.string().default("./data/uploads"),
+    FILE_SIGNING_SECRET: z.string().min(24).default(createHash("sha256").update("dev secret").digest("base64url")),
   })
   .refine((v) => v.SESSION_IDLE_HOURS < v.SESSION_ABSOLUTE_HOURS, {
     message: "SESSION_IDLE_HOURS must be smaller than SESSION_ABSOLUTE_HOURS",

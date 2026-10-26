@@ -15,6 +15,7 @@ import "./fastify-augment.d.js";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import multipart from "@fastify/multipart";
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { audit } from "./audit.js";
 import { createPrisma, type ApiPrisma } from "./db.js";
@@ -154,6 +155,13 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
       },
     },
     referrerPolicy: { policy: "no-referrer" },
+  });
+
+  // Multipart for the M1 materials upload (docs/09: "upload route up to
+  // 25 MB with MIME and extension allow-list"). The global JSON body limit
+  // stays 100 KB; only the upload route raises it.
+  await app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 5, fields: 10 },
   });
 
   await app.register(rateLimit, {
