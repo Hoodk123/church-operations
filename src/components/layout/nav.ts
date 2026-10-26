@@ -22,6 +22,15 @@ export interface NavItem {
   group?: string;
 }
 
+/**
+ * Collapsible sidebar groups. A nav item joins a group by setting
+ * `group: '<name>'`; to add another class later (M2, Siloam, ...) add one
+ * item below with `group: 'Classes'` and it appears under the dropdown.
+ */
+export const NAV_GROUPS: Record<string, { icon: LucideIcon }> = {
+  Classes: { icon: GraduationCap },
+};
+
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Home', href: '/home', icon: Home, mobile: false, roles: ['Admin'] },
   {
