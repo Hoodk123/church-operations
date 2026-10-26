@@ -75,8 +75,18 @@ export const NAV_ITEMS: NavItem[] = [
     group: 'Classes',
     roles: ['Admin', 'Pastor', 'Follow-up Coordinator'],
   },
+  {
+    label: 'Siloam',
+    href: '/siloam',
+    icon: GraduationCap,
+    mobile: false,
+    group: 'Classes',
+    roles: ['Admin', 'Pastor'],
+  },
 ];
-
+export const NAV_GROUPS: Record<string, { icon: LucideIcon }> = {
+  Classes: { icon: GraduationCap },
+};
 export function visibleNavItems(role: string | null, mobile = false): NavItem[] {
   return NAV_ITEMS.filter(
     (item) =>
