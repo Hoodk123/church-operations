@@ -32,6 +32,8 @@ const EXPECTED_ROUTES: ReadonlyArray<{ method: string; url: string; action: stri
   { method: "GET", url: "/api/health", action: null },
   { method: "HEAD", url: "/api/health", action: null },
   { method: "POST", url: "/api/auth/login", action: null },
+  { method: "GET", url: "/api/attention", action: "attention:read" },
+  { method: "HEAD", url: "/api/attention", action: "attention:read" },
   { method: "GET", url: "/api/auth/me", action: "account:me" },
   { method: "HEAD", url: "/api/auth/me", action: "account:me" },
   { method: "POST", url: "/api/auth/logout", action: "account:me" },
@@ -44,6 +46,8 @@ const EXPECTED_ROUTES: ReadonlyArray<{ method: string; url: string; action: stri
   { method: "HEAD", url: "/api/team-members", action: "people:read" },
   { method: "GET", url: "/api/people/:id", action: "people:read" },
   { method: "HEAD", url: "/api/people/:id", action: "people:read" },
+  { method: "GET", url: "/api/people/:id/export", action: "export-person" },
+  { method: "HEAD", url: "/api/people/:id/export", action: "export-person" },
   { method: "POST", url: "/api/people", action: "people:create" },
   { method: "PATCH", url: "/api/people/:id", action: "people:edit" },
   { method: "PATCH", url: "/api/people/:id/assign", action: "people:assign" },
@@ -124,6 +128,9 @@ const EXPECTED_ROUTES: ReadonlyArray<{ method: string; url: string; action: stri
   { method: "GET", url: "/api/public/reply/:token", action: null },
   { method: "HEAD", url: "/api/public/reply/:token", action: null },
   { method: "POST", url: "/api/public/reply/:token", action: null },
+  { method: "POST", url: "/api/public/welcome", action: null },
+  { method: "POST", url: "/api/public/welcome/returning", action: null },
+  { method: "POST", url: "/api/imports/people", action: "import:run" },
 ];
 
 const ACTION_SET = new Set<string>(ACTIONS);

@@ -24,6 +24,8 @@ export const ACTIONS = [
   "followup:log",
   "board:move",
   "m1:read",
+  // Needs-Attention lists (docs/04 Screen 5: read-only for non-admin roles).
+  "attention:read",
   "m1:tick",
   "m1:enroll",
   "m1:delete",
@@ -57,6 +59,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
   Admin: ACTIONS,
   "Info Desk": [
     "account:me",
+    "attention:read",
     "checkin:read",
     "checkin:create",
     "checkin:undo",
@@ -82,6 +85,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "followup:log",
     "board:move",
     // Phase 8 matrix: the Coordinator does NOT see counseling records.
+    "attention:read",
     "checkin:read",
     "attendance:read",
     "m1:read",
@@ -101,6 +105,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "counseling:read",
     "counseling:write",
     "followup:read",
+    "attention:read",
     "attendance:read",
     "m1:read",
     "baptism:read",

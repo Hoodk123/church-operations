@@ -188,6 +188,10 @@ model People {
   addressDetails String? @map("address_details")
   needsM1 Boolean @default(false) @map("needs_m1")
   needsBaptism Boolean @default(false) @map("needs_baptism")
+  // docs/08 1.4 additive columns for the public welcome form
+  churchGroup String? @map("church_group")
+  source String?
+  firstVisitDate DateTime? @db.Date @map("first_visit_date")
 
   // the team members who act on this person (NO ACTION as live)
   assignee TeamMembers? @relation("peopleAssignedTo", fields: [assignedTo], references: [id], onUpdate: NoAction, onDelete: NoAction)
@@ -202,6 +206,7 @@ model People {
   replyLinks M1ReplyLinks[]
   absenceReplies M1AbsenceReplies[]
   baptismRegistrations BaptismRegistrations[]
+  welcomeSubmissions WelcomeSubmissions[]
 
   @@index([phone], name: "people_phone_idx")
   @@index([dateRegistered], name: "people_date_registered_idx")
@@ -527,4 +532,51 @@ model BaptismRegistrations {
 
   @@unique([eventId, personId], map: "baptism_registrations_event_id_person_id_key")
   @@map("baptism_registrations")
+}
+
+// ---- Public welcome form (docs/08 1.4, additive tables) --------------------
+// Check constraints from the docs live in the migration/validation code.
+
+model WelcomeSubmissions {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId String? @map("person_id") @db.Uuid
+  qrSource String? @map("qr_source")
+  fullName String @map("full_name")
+  phone String
+  location String
+  preferredContact String @map("preferred_contact")
+  firstTime Boolean @map("first_time")
+  fellowshipDuration String? @map("fellowship_duration")
+  foundVia String? @map("found_via")
+  invitedByText String? @map("invited_by_text")
+  familyStatus String? @map("family_status")
+  adultsCount Int? @map("adults_count")
+  childrenCount Int? @map("children_count")
+  wantsFamilyRegistration Boolean @default(false) @map("wants_family_registration")
+  classReadiness String? @map("class_readiness")
+  feedback String?
+  consent Boolean
+  status String @default("new")
+  submittedAt DateTime @default(now()) @db.Timestamptz(6) @map("submitted_at")
+  checkedInAt DateTime? @db.Timestamptz(6) @map("checked_in_at")
+  reviewedBy String? @map("reviewed_by") @db.Uuid
+
+  person People? @relation(fields: [personId], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  classInterest WelcomeClassInterest[]
+
+  @@index([status, submittedAt(sort: Desc)], name: "welcome_submissions_status_idx")
+  @@index([phone], name: "welcome_submissions_phone_idx")
+  @@map("welcome_submissions")
+}
+
+model WelcomeClassInterest {
+  submissionId String @map("submission_id") @db.Uuid
+  // The class catalogue is not modelled yet (docs/08 checks against
+  // class_types). Free-form identifier, validated against the known list.
+  classTypeId String @map("class_type_id")
+
+  submission WelcomeSubmissions @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([submissionId, classTypeId])
+  @@map("welcome_class_interest")
 }

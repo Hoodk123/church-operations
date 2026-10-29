@@ -56,6 +56,16 @@ export async function registerM1MessageRoutes(app: FastifyInstance): Promise<voi
         orderBy: [{ createdAt: "desc" }],
         include: { person: { select: { firstName: true, lastName: true } } },
       });
+      // These replies are written BY the person ("Sick", family reasons) and
+      // count as special-category reads under docs/09: audit every retrieval
+      // with a message that carries no personal content.
+      await audit(req.prisma, {
+        userId: req.user!.id,
+        action: "m1.absence_replies_read",
+        entity: "m1_classes",
+        entityId: param.data,
+        message: "absence replies retrieved for a class",
+      });
       return {
         items: rows.map((row) => ({
           personId: row.personId,

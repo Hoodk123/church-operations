@@ -11,6 +11,7 @@
 //    test Postgres: allowed -> not 403/401 and not 5xx; denied -> exactly 403.
 //
 // Fake seed accounts and fake people only. Run: npm test
+import { randomUUID } from "node:crypto";
 import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { afterAll, beforeAll, expect, test } from "vitest";
@@ -31,6 +32,7 @@ const EXPECTED: Record<Role, readonly Action[]> = {
   Admin: ALL,
   "Info Desk": [
     "account:me",
+    "attention:read",
     "account:password",
     "checkin:read",
     "checkin:create",
@@ -49,6 +51,7 @@ const EXPECTED: Record<Role, readonly Action[]> = {
   ],
   "Follow-up Coordinator": [
     "account:me",
+    "attention:read",
     "account:password",
     "people:read",
     "people:read-notes",
@@ -68,6 +71,7 @@ const EXPECTED: Record<Role, readonly Action[]> = {
   ],
   Pastor: [
     "account:me",
+    "attention:read",
     "account:password",
     "people:read",
     "people:read-notes",
@@ -109,8 +113,7 @@ interface StepSpec {
   capture?(res: LightMyRequestResponse): void;
 }
 
-const fixtureUuid = (): string =>
-  `${randomBytes(4).toString("hex")}-${randomBytes(2).toString("hex")}-4${randomBytes(2).toString("hex")}-8${randomBytes(2).toString("hex")}-${randomBytes(6).toString("hex")}`;
+const fixtureUuid = (): string => randomUUID();
 
 let personId = "";
 let lastCheckinId: string | null = null;
@@ -124,8 +127,15 @@ const createdTemplateIds: string[] = [];
 const createdRegistrationIds: string[] = [];
 
 const STEPS: ReadonlyArray<StepSpec & { action: Action }> = [
-  { action: "account:me", method: "GET", url: () => "/api/auth/me" },
-  // allowed: 400 (zod on empty body), denied: 403
+  {
+    action: "account:me",
+    method: "GET",
+    url: () => "/api/auth/me",
+  },
+  { action: "attention:read", method: "GET", url: () => "/api/attention" },
+  // Admin-only action (`import:run`), reached with an empty body (no CSV): allowed -> 400, denied -> 403.
+  { action: "import:run", method: "POST", url: () => "/api/imports/people", body: () => ({}) },
+  { action: "export-person", method: "GET", url: () => `/api/people/${fixtureUuid()}/export` }, // allowed: 404
   { action: "account:password", method: "POST", url: () => "/api/auth/password", body: () => ({}) },
   { action: "people:read", method: "GET", url: () => "/api/people?limit=1&offset=0" },
   {
@@ -249,8 +259,6 @@ const KNOWN_ROUTE_LESS: readonly Action[] = [
   "admin:settings",
   "admin:audit",
   "admin:health",
-  "import:run",
-  "export-person",
 ];
 
 test("actions without an HTTP step are consciously listed as route-less", () => {
@@ -411,7 +419,7 @@ test("every role x every exposed action obeys the matrix over HTTP", async () =>
       const res = await app.inject(injectOptions);
       const label = `${step.action} as ${role}`;
       if (!allowed) {
-        expect(res.statusCode, `${label} must be exactly 403`).toBe(403);
+        expect(res.statusCode, `${label} must be exactly 403 (body: ${res.body.slice(0, 140)})`).toBe(403);
       } else {
         expect(res.statusCode < 500, `${label} must not be a server error (got ${res.statusCode})`).toBe(true);
         expect([401, 403]).not.toContain(res.statusCode);
