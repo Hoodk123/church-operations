@@ -99,7 +99,9 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
 
   const app = Fastify({
     bodyLimit: 100 * 1024,
-    trustProxy: false,
+    // Behind the trusted reverse proxy only (env TRUST_PROXY, validated in
+    // env.ts); direct callers get their real socket address.
+    trustProxy: env.TRUST_PROXY === "true",
     logger: {
       level: env.CHURCH_ENV === "production" ? "warn" : "info",
       redact: {

@@ -26,6 +26,13 @@ const envSchema = z
     UPLOAD_DIR: z.string().default("./data/uploads"),
     // Dev gets a fixed default; production must supply its own (checked in loadEnv).
     FILE_SIGNING_SECRET: z.string().min(24).default(DEV_FILE_SECRET),
+    // Set to "true" ONLY when the API sits behind the trusted proxy (the
+    // Phase 5 compose front in front of /api). Enables X-Forwarded-* parsing
+    // for request IPs (rate limiting, audit ip-hash). Leaving it "false" on a
+    // directly exposed API keeps spoofed X-Forwarded-For headers harmless.
+    TRUST_PROXY: z
+      .union([z.literal("true"), z.literal("false")])
+      .default("false"),
   })
   .refine((v) => v.SESSION_IDLE_HOURS < v.SESSION_ABSOLUTE_HOURS, {
     message: "SESSION_IDLE_HOURS must be smaller than SESSION_ABSOLUTE_HOURS",
