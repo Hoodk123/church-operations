@@ -43,6 +43,8 @@ export const ACTIONS = [
   "import:run",
   "export-person",
   "erase-person",
+  // Every signed-in role may read its own identity and log out.
+  "account:me",
   // Every signed-in role may change its own password.
   "account:password",
 ] as const;
@@ -54,6 +56,7 @@ export type Action = (typeof ACTIONS)[number];
 const MATRIX: Record<Role, readonly Action[]> = {
   Admin: ACTIONS,
   "Info Desk": [
+    "account:me",
     "checkin:read",
     "checkin:create",
     "checkin:undo",
@@ -71,23 +74,28 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "account:password",
   ],
   "Follow-up Coordinator": [
+    "account:me",
     "people:read",
     "people:read-notes",
     "people:assign",
     "followup:read",
     "followup:log",
     "board:move",
-    "counseling:read",
+    // Phase 8 matrix: the Coordinator does NOT see counseling records.
+    "checkin:read",
     "attendance:read",
     "m1:read",
     "m1:tick",
     "m1:enroll",
-    "baptism:read", 
+    // Phase 8 matrix: Baptism "register, mark done" belongs to the Coordinator.
+    "baptism:write",
+    "baptism:read",
     "metrics:read",
     "templates:read",
     "account:password",
   ],
   Pastor: [
+    "account:me",
     "people:read",
     "people:read-notes",
     "counseling:read",
@@ -102,8 +110,9 @@ const MATRIX: Record<Role, readonly Action[]> = {
   ],
 };
 
-export function can(role: Role, action: Action): boolean {
-  return (MATRIX[role] as readonly string[]).includes(action);
+export function can(role: Role | "", action: Action): boolean {
+  const allowed: readonly string[] | undefined = role === "" ? undefined : (MATRIX[role] as readonly string[]);
+  return allowed?.includes(action) ?? false;
 }
 
 /**

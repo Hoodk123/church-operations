@@ -13,6 +13,16 @@ declare module "fastify" {
     // Human-readable role name ("Info Desk"), set alongside `user`.
     roleName?: string;
   }
+  interface FastifyInstance {
+    // Populated by buildServer (server.ts) after the startup policy check:
+    // every registered route with its method, URL and policy declaration.
+    declaredRoutes?: Array<{
+      url: string;
+      method: string;
+      access?: string;
+      action?: string;
+    }>;
+  }
   interface FastifyContextConfig {
     // Every route MUST declare one of these (startup check in server.ts).
     access?: "public" | "auth";

@@ -325,5 +325,9 @@ export async function buildServer(options: BuildOptions = {}): Promise<FastifyIn
     throw new Error(`Routes without complete policy declarations: ${summary}`);
   }
 
+  // Expose the audited route inventory for tests (route-registry test) and
+  // tooling. Plain data: no secrets, no personal data.
+  app.decorate("declaredRoutes", declaredRoutes);
+
   return app;
 }

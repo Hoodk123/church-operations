@@ -127,7 +127,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     "/api/auth/me",
-    { config: { access: "auth", action: "people:read" } },
+    { config: { access: "auth", action: "account:me" } },
     async (req, reply) => {
       if (!req.user) {
         return reply.code(401).send({ error: "unauthorized" });
@@ -141,7 +141,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     "/api/auth/logout",
-    { config: { access: "auth", action: "people:read" } },
+    { config: { access: "auth", action: "account:me" } },
     async (req, reply) => {
       if (req.sessionToken) {
         await endSession(req.prisma, req.sessionToken);
