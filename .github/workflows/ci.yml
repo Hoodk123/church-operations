@@ -1,0 +1,81 @@
+# CI (docs/09 work order F). Runs on every push and PR to the platform
+# branches. No secrets: the Postgres password below is a throwaway CI-only
+# value for a disposable container database, matching the seeded fake
+# accounts (church.test) that tests expect.
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  api:
+    name: API typecheck, lint, tests, audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: church_app
+          POSTGRES_PASSWORD: church-app-ci-throwaway
+          POSTGRES_DB: church
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U church_app"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: church_app
+      POSTGRES_PASSWORD: church-app-ci-throwaway
+      POSTGRES_DB: church
+      PG_PORT: "5432"
+      DB_HOST: 127.0.0.1
+      CHURCH_APP_PASSWORD: church-app-ci-throwaway
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      - name: Seed fake data
+        run: npx prisma db seed
+        env:
+          CHURCH_APP_PASSWORD: church-app-ci-throwaway
+
+      - name: API typecheck
+        run: npm run api:typecheck
+
+      - name: OxLint
+        run: npm run lint
+
+      - name: npm audit (high and above)
+        run: npm audit --audit-level=high
+
+      - name: Vitest against real Postgres
+        run: npm test
+
+      - name: Smoke test
+        run: npx tsx api/tests/smoke.ts
+
+      - name: Secret scan (tracked files only)
+        run: |
+          if git grep -InE 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9_-]{20,}|BEGIN [A-Z ]*PRIVATE KEY-----'; then
+            echo "Secret-looking content committed"; exit 1
+          fi
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo ".env must never be committed"; exit 1
+          fi
