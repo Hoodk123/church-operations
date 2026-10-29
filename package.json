@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "vitest run",
+    "api:typecheck": "tsc --noEmit -p api",
     "postinstall": "prisma generate"
   },
   "dependencies": {
