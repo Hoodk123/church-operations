@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import "dotenv/config";
 import { z } from "zod";
 
+const DEV_FILE_SECRET = createHash("sha256").update("dev secret").digest("base64url");
+
 const envSchema = z
   .object({
     CHURCH_ENV: z.enum(["dev", "production"]).default("dev"),
@@ -22,7 +24,8 @@ const envSchema = z
     SESSION_IDLE_HOURS: z.coerce.number().int().min(1).max(48).default(8),
     SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(72).default(24),
     UPLOAD_DIR: z.string().default("./data/uploads"),
-    FILE_SIGNING_SECRET: z.string().min(24).default(createHash("sha256").update("dev secret").digest("base64url")),
+    // Dev gets a fixed default; production must supply its own (checked in loadEnv).
+    FILE_SIGNING_SECRET: z.string().min(24).default(DEV_FILE_SECRET),
   })
   .refine((v) => v.SESSION_IDLE_HOURS < v.SESSION_ABSOLUTE_HOURS, {
     message: "SESSION_IDLE_HOURS must be smaller than SESSION_ABSOLUTE_HOURS",
@@ -40,6 +43,9 @@ export function loadEnv(): Env {
   const env = parsed.data;
   if (env.CHURCH_ENV === "production" && env.CHURCH_APP_PASSWORD.length < 24) {
     throw new Error("CHURCH_APP_PASSWORD looks too weak for production (min 24 chars).");
+  }
+  if (env.CHURCH_ENV === "production" && env.FILE_SIGNING_SECRET === DEV_FILE_SECRET) {
+    throw new Error("FILE_SIGNING_SECRET must be set to a unique random value in production.");
   }
   return env;
 }

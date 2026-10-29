@@ -10,6 +10,10 @@ import { registerBoardRoutes } from "./board.js";
 import { registerTemplateRoutes } from "./templates.js";
 import { registerM1Routes } from "./m1.js";
 import { registerMetricsRoutes } from "./metrics.js";
+import { registerAdminRoutes } from "./admin.js";
+import { registerBaptismRoutes } from "./baptism.js";
+import { registerM1FileRoutes } from "./m1-files.js";
+import { registerM1MessageRoutes } from "./m1-messages.js";
 
 export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerHealthRoutes(app);
@@ -20,4 +24,8 @@ export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerTemplateRoutes(app);
   await registerM1Routes(app);
   await registerMetricsRoutes(app);
+  await registerAdminRoutes(app);
+  await registerBaptismRoutes(app);
+  await registerM1FileRoutes(app);
+  await registerM1MessageRoutes(app);
 }

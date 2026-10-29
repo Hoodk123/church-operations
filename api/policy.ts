@@ -43,6 +43,8 @@ export const ACTIONS = [
   "import:run",
   "export-person",
   "erase-person",
+  // Every signed-in role may change its own password.
+  "account:password",
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -66,6 +68,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "baptism:read",
     "metrics:read",
     "templates:read",
+    "account:password",
   ],
   "Follow-up Coordinator": [
     "people:read",
@@ -82,6 +85,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "baptism:read", 
     "metrics:read",
     "templates:read",
+    "account:password",
   ],
   Pastor: [
     "people:read",
@@ -94,6 +98,7 @@ const MATRIX: Record<Role, readonly Action[]> = {
     "baptism:read",
     "metrics:read",
     "checkin:read",
+    "account:password",
   ],
 };
 

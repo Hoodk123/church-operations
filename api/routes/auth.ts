@@ -163,7 +163,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     "/api/auth/password",
-    { config: { access: "auth", action: "admin:settings" } },
+    { config: { access: "auth", action: "account:password" } },
     async (req, reply) => {
       const parsed = changePasswordSchema.safeParse(req.body);
       if (!parsed.success) {
