@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, PanelLeft, Share2, MoreVertical, LogOut, Settings, HelpCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { initials } from '@/lib/names';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,10 +38,10 @@ export default function Navbar({
   onSidebarToggle,
 }: NavbarProps) {
   const navigate = useNavigate();
-  const supabase = createClient();
+  const { logout } = useAuth();
 
   async function handleLogout() {
-    await supabase.auth.signOut();
+    await logout();
     navigate('/login');
   }
 

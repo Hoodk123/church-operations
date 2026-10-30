@@ -9,6 +9,7 @@ import { audit } from "../audit.js";
 import { newCsrfToken, SESSION_COOKIE, CSRF_COOKIE, startSession, endSession, endAllSessionsExcept } from "../auth/session.js";
 import { hashPassword, verifyPassword, passwordPolicyError } from "../auth/passwords.js";
 import { humanize } from "../lib/enums.js";
+import { currentMember } from "../lib/route-helpers.js";
 
 const loginSchema = z.object({
   email: z.email().max(200).toLowerCase(),
@@ -134,7 +135,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       }
       return {
         user: { id: req.user.id, email: req.user.email, role: humanize("UserRole", req.user.role) ?? req.user.role },
-        csrfToken: (req.cookies as Record<string, string | undefined>)[CSRF_COOKIE] ?? null,
+        member: await currentMember(req.prisma, req.user),
       };
     },
   );

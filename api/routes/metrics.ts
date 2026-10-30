@@ -57,7 +57,20 @@ export async function registerMetricsRoutes(app: FastifyInstance): Promise<void>
         req.prisma.people.count({ where: { needsM1: true } }),
         req.prisma.people.count({ where: { needsBaptism: true, baptismStatus: { not: "Baptized" } } }),
       ]);
-    return { attendanceToday, attendanceLastSunday, visitorsWeek, convertsWeek, contactedWeek, waitingM1, needBaptism };
+    const latest = await req.prisma.people.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    });
+    return {
+      attendanceToday,
+      attendanceLastSunday,
+      visitorsWeek,
+      convertsWeek,
+      contactedWeek,
+      waitingM1,
+      needBaptism,
+      lastPersonUpdatedAt: latest ? latest.updatedAt.toISOString() : null,
+    };
   });
 
   // ---- Open follow-up list (the Home "needs attention" list) -----------------

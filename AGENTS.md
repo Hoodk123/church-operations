@@ -13,7 +13,7 @@
   question instead of guessing.
 - Windows dev: DB is the Docker container `church-db` on `127.0.0.1:5433`; use PowerShell
   (`Select-Object`), not `tail`.
-
+- Use caveman style. Read only what the task needs. Use context7 for library APIs.
 ## Current phase
 **Phase 3 · The API** on branch `platform/p3-api` (docs/09-local-first-migration.md).
 PR target: `platform/local-first`.

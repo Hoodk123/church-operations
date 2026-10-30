@@ -1,8 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
 import LoginForm from '@/components/LoginForm';
 import AppShell from '@/components/layout/AppShell';
 import Dashboard from '@/components/Dashboard';
@@ -17,47 +14,13 @@ import M1Page from '@/components/m1/M1Page';
 import CertificatePrintPage from '@/components/m1/CertificatePrintPage';
 import BaptismPage from '@/components/baptism/BaptismPage';
 import ReplyPage from '@/components/reply/ReplyPage';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 function ProtectedRoute() {
-  const [checking, setChecking] = useState(true);
-  const [authed, setAuthed] = useState(false);
-  const supabase = createClient();
+  const { status } = useAuth();
 
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setAuthed(!!data.session);
-      setChecking(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        if (!mounted) return;
-        if (event === 'SIGNED_OUT') {
-          setAuthed(false);
-          return;
-        }
-
-        if (session) {
-          setAuthed(true);
-        } else {
-          const { data } = await supabase.auth.getSession();
-          if (data.session) {
-            setAuthed(true);
-          }
-        }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  if (checking) {
+  if (status === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
@@ -65,12 +28,14 @@ function ProtectedRoute() {
     );
   }
 
-  return authed ? <Outlet /> : <Navigate to="/login" replace />;
+  return status === 'authed' ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginForm />} />
         <Route path="/reply/:token" element={<ReplyPage />} />
@@ -96,6 +61,8 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster position="top-center" richColors closeButton />
-    </BrowserRouter>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
