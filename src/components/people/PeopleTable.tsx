@@ -141,7 +141,7 @@ export default function PeopleTable() {
   }, [supabase, linkedPersonId]);
 
   useEffect(() => {
-    loadPeople();
+    void loadPeople();
   }, [loadPeople]);
 
   const columnFilterState = useMemo(() => toColumnFilters(filters), [filters]);
