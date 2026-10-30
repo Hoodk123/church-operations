@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, MapPin, Plus, Search } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { todayISO } from '@/lib/dates';
 import { initials } from '@/lib/names';
-import { rlsErrorMessage } from '@/lib/rls-error';
+import {
+  checkIn,
+  expectedToday,
+  searchPeople,
+  todayAttendance,
+  undoCheckin,
+  type AttendanceRow,
+  type CheckinSearchRow,
+  type ExpectedPerson as ExpectedRow,
+} from '@/lib/api/checkin';
+import { ApiError } from '@/lib/api/client';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import NewVisitorDrawer from './NewVisitorDrawer';
@@ -48,8 +56,12 @@ interface SearchPerson {
 
 interface AttendanceRaw {
   id: string;
-  checked_in_at: string;
-  person: TodayPerson | TodayPerson[] | null;
+  checkedInAt: string;
+  person: { id: string; firstName: string; lastName: string; category: string } | null;
+}
+
+function rowToTodayPerson(p: AttendanceRaw['person']): TodayPerson | null {
+  return p ? { id: p.id, first_name: p.firstName, last_name: p.lastName, category: p.category } : null;
 }
 
 interface ExpectedPerson {
@@ -60,14 +72,29 @@ interface ExpectedPerson {
   location: string | null;
 }
 
-function personOf(row: AttendanceRaw): TodayPerson | null {
-  return Array.isArray(row.person) ? (row.person[0] ?? null) : row.person;
+function rowToSearchPerson(row: CheckinSearchRow): SearchPerson {
+  return {
+    id: row.id,
+    first_name: row.firstName,
+    last_name: row.lastName,
+    phone: row.phone,
+    category: row.category || null,
+    location: row.location,
+  };
+}
+
+function rowToExpected(row: ExpectedRow): ExpectedPerson {
+  return {
+    id: row.id,
+    first_name: row.firstName,
+    last_name: row.lastName,
+    category: row.category || null,
+    location: row.location,
+  };
 }
 
 export default function CheckInPage() {
   const member = useShellMember();
-  const supabase = createClient();
-  const today = useMemo(() => todayISO(), []);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchPerson[]>([]);
@@ -88,8 +115,7 @@ export default function CheckInPage() {
   const checkedInMap = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of attendance ?? []) {
-      const person = personOf(row);
-      if (person) map.set(person.id, row.checked_in_at);
+      if (row.person) map.set(row.person.id, row.checkedInAt);
     }
     return map;
   }, [attendance]);
@@ -98,33 +124,31 @@ export default function CheckInPage() {
     if (attendance === null) return null;
     return attendance.map((row) => ({
       id: row.id,
-      checkedInAt: row.checked_in_at,
-      person: personOf(row),
+      checkedInAt: row.checkedInAt,
+      person: rowToTodayPerson(row.person),
     }));
   }, [attendance]);
 
-  const loadAttendance = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select(
-        'id, checked_in_at, person:people!attendance_person_id_fkey(id, first_name, last_name, category)'
-      )
-      .eq('service_date', today)
-      .order('checked_in_at', { ascending: false });
-    if (error) return null;
-    return (data ?? []) as AttendanceRaw[];
-  }, [supabase, today]);
+  const loadAttendance = useCallback(async (): Promise<AttendanceRow[] | null> => {
+    try {
+      return await todayAttendance();
+    } catch {
+      return null;
+    }
+  }, []);
 
-  const loadExpected = useCallback(async () => {
-    const { data, error } = await supabase.rpc('expected_today');
-    if (error) return [];
-    return (data ?? []) as ExpectedPerson[];
-  }, [supabase]);
+  const loadExpected = useCallback(async (): Promise<ExpectedRow[]> => {
+    try {
+      return await expectedToday();
+    } catch {
+      return [];
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     const [rows, exp] = await Promise.all([loadAttendance(), loadExpected()]);
     if (rows) setAttendance(rows);
-    setExpected(exp);
+    setExpected(exp.map(rowToExpected));
   }, [loadAttendance, loadExpected]);
 
   useEffect(() => {
@@ -138,7 +162,7 @@ export default function CheckInPage() {
       } else {
         setAttendance(rows);
       }
-      setExpected(exp);
+      setExpected(exp.map(rowToExpected));
     }
     load();
     return () => {
@@ -163,68 +187,63 @@ export default function CheckInPage() {
 
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const safe = q.replace(/[%,()]/g, ' ').trim();
-      const { data, error } = await supabase
-        .from('people')
-        .select('id, first_name, last_name, phone, category, location')
-        .or(
-          `first_name.ilike.%${safe}%,last_name.ilike.%${safe}%,phone.ilike.%${safe}%`
-        )
-        .order('first_name', { ascending: true })
-        .limit(20);
-
-      if (cancelled) return;
-      if (error) {
-        toast.error(rlsErrorMessage(error));
-      } else {
-        setResults(data ?? []);
+      try {
+        const rows = await searchPeople(q); // API sanitizes %() itself
+        if (cancelled) return;
+        setResults(rows.map(rowToSearchPerson));
+      } catch (e) {
+        if (cancelled) return;
+        toast.error(e instanceof Error ? e.message : 'Search failed');
+      } finally {
+        if (!cancelled) setSearching(false);
       }
-      setSearching(false);
     }, 250);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query, supabase]);
+  }, [query]);
 
-  const checkIn = useCallback(
+  const doCheckIn = useCallback(
     async (person: { id: string; first_name: string; last_name: string }) => {
       if (!member) return;
       const name = `${person.first_name} ${person.last_name}`;
       setCheckingId(person.id);
 
-      const { error } = await supabase
-        .from('attendance')
-        .insert({ person_id: person.id, checked_in_by: member.id });
+      let error: unknown;
+      try {
+        await checkIn(person.id);
+      } catch (e) {
+        error = e;
+      }
 
       setCheckingId(null);
 
-      if (error) {
-        if (error.code === '23505') {
-          toast.info(`${name} is already checked in today`);
-        } else {
-          toast.error(rlsErrorMessage(error));
-        }
+      if (error instanceof ApiError && error.status === 409) {
+        toast.info(`${name} is already checked in today`);
+      } else if (error) {
+        toast.error(error instanceof Error ? error.message : 'Check-in failed');
       } else {
         toast.success(`${name} checked in`);
       }
       await refresh();
     },
-    [member, supabase, refresh]
+    [member, refresh]
   );
 
   const undo = useCallback(
     async (attendanceId: string) => {
-      const { error } = await supabase.from('attendance').delete().eq('id', attendanceId);
-      if (error) {
-        toast.error(rlsErrorMessage(error));
+      try {
+        await undoCheckin(attendanceId);
+        toast.success('Check-in undone');
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Undo failed');
         return;
       }
-      toast.success('Check-in undone');
       await refresh();
     },
-    [supabase, refresh]
+    [refresh]
   );
 
   const isSearching = query.trim().length >= 2;
@@ -237,7 +256,7 @@ export default function CheckInPage() {
         size="sm"
         className="h-8 cursor-pointer rounded-full"
         disabled={checkingId === person.id}
-        onClick={() => void checkIn(person)}
+        onClick={() => void doCheckIn(person)}
       >
         {person.first_name} {person.last_name}
         {checkingId === person.id ? (
@@ -353,7 +372,7 @@ export default function CheckInPage() {
                         <Button
                           size="sm"
                           disabled={checkingId === person.id}
-                          onClick={() => void checkIn(person)}
+                          onClick={() => void doCheckIn(person)}
                         >
                           {checkingId === person.id && <Spinner className="size-4" />}
                           Check in
@@ -417,7 +436,6 @@ export default function CheckInPage() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         onCheckedIn={refresh}
-        memberId={member?.id ?? ''}
       />
 
       <Sheet open={showAllOpen} onOpenChange={setShowAllOpen}>
@@ -446,7 +464,7 @@ export default function CheckInPage() {
                   <Button
                     size="sm"
                     disabled={checkingId === p.id}
-                    onClick={() => void checkIn(p)}
+                    onClick={() => void doCheckIn(p)}
                   >
                     {checkingId === p.id && <Spinner className="size-4" />}
                     Check in

@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Check, MapPin, Plus } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { validateRwandaPhone, phoneDigits } from '@/lib/phone';
-import { rlsErrorMessage } from '@/lib/rls-error';
+import { validateRwandaPhone } from '@/lib/phone';
 import { useIsMobile } from '@/lib/use-is-mobile';
+import { ApiError } from '@/lib/api/client';
+import {
+  checkIn as apiCheckIn,
+  duplicateCandidates,
+  registerNewVisitor,
+  type NewVisitorCandidate,
+} from '@/lib/api/checkin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,7 +43,6 @@ interface NewVisitorDrawerProps {
   onOpenChange: (open: boolean) => void;
   /** Parent refetches attendance + today count. */
   onCheckedIn: () => void;
-  memberId: string;
 }
 
 interface DuplicatePerson {
@@ -72,12 +76,7 @@ function getFullName(first: string, last: string): string {
   return `${first.trim()} ${last.trim()}`.trim();
 }
 
-export default function NewVisitorDrawer({
-  open,
-  onOpenChange,
-  onCheckedIn,
-  memberId,
-}: NewVisitorDrawerProps) {
+export default function NewVisitorDrawer({ open, onOpenChange, onCheckedIn }: NewVisitorDrawerProps) {
   const isMobile = useIsMobile();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [phoneError, setPhoneError] = useState('');
@@ -85,7 +84,6 @@ export default function NewVisitorDrawer({
   const [submitting, setSubmitting] = useState(false);
   const [duplicate, setDuplicate] = useState<DuplicatePerson | null>(null);
   const [savedName, setSavedName] = useState<string | null>(null);
-  const supabase = createClient();
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -109,17 +107,15 @@ export default function NewVisitorDrawer({
   }
 
   async function checkInPerson(personId: string, name: string): Promise<boolean> {
-    const { error: attErr } = await supabase
-      .from('attendance')
-      .insert({ person_id: personId, checked_in_by: memberId });
-
-    if (attErr && attErr.code === '23505') {
-      toast.info(`${name} is already checked in today`);
-      onCheckedIn();
-      return false;
-    }
-    if (attErr) {
-      toast.error(rlsErrorMessage(attErr));
+    try {
+      await apiCheckIn(personId);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        toast.info(`${name} is already checked in today`);
+        onCheckedIn();
+        return false;
+      }
+      toast.error(e instanceof Error ? e.message : 'Check-in failed');
       return false;
     }
     toast.success(`${name} checked in`);
@@ -150,66 +146,56 @@ export default function NewVisitorDrawer({
       return;
     }
 
+    if (form.gender !== 'Male' && form.gender !== 'Female') {
+      setError('Gender is required.');
+      return;
+    }
+
     setSubmitting(true);
 
-    const name = getFullName(form.first_name, form.last_name);
-    const digits = phoneDigits(phoneValidation.formatted).slice(-9);
-
-    // Duplicate guard: same phone already registered?
-    const { data: candidates, error: dupErr } = await supabase
-      .from('people')
-      .select('id, first_name, last_name, phone')
-      .ilike('phone', `%${digits}%`)
-      .limit(5);
-
-    if (dupErr) {
-      toast.error(rlsErrorMessage(dupErr));
-      setSubmitting(false);
-      return;
-    }
-
-    const match = candidates?.find((p) => phoneDigits(p.phone ?? '').endsWith(digits));
-    if (match) {
-      setDuplicate({
-        id: match.id,
-        name: getFullName(match.first_name, match.last_name),
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    // 1. Insert the person
-    const { data: inserted, error: insertErr } = await supabase
-      .from('people')
-      .insert({
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
+    try {
+      const outcome = await registerNewVisitor({
+        firstName: form.first_name.trim(),
+        lastName: form.last_name.trim(),
         phone: phoneValidation.formatted,
-        gender: form.gender || null,
-        age_group: form.age_group || null,
+        gender: form.gender,
+        ageGroup: (ageGroups as readonly string[]).includes(form.age_group)
+          ? (form.age_group as 'Child' | 'Youth' | 'Adult' | 'Elderly')
+          : null,
         location: form.location.trim() || null,
-        how_found_church: form.how_found_church.trim() || null,
-        category: form.giveToChrist ? 'New Convert' : 'Visitor',
-        needs_pastor: form.giveToChrist,
-        registered_by: memberId,
-      })
-      .select('id')
-      .single();
+        howFoundChurch: form.how_found_church.trim() || null,
+        giveToChrist: form.giveToChrist,
+      });
 
-    if (insertErr) {
-      toast.error(rlsErrorMessage(insertErr));
+      if (outcome.kind === 'duplicate') {
+        const match: NewVisitorCandidate | undefined = outcome.candidates[0];
+        if (match) {
+          setDuplicate({ id: match.id, name: getFullName(match.firstName, match.lastName) });
+          return;
+        }
+        setError('This phone is already registered.');
+        return;
+      }
+
+      // Created and checked in server-side.
+      toast.success(`${outcome.name} checked in`);
+      onCheckedIn();
+      setForm(emptyForm);
+      setPhoneError('');
+      setSavedName(outcome.name);
+    } catch (err) {
+      if (err instanceof ApiError && duplicateCandidates(err).length > 0) {
+        const candidates = duplicateCandidates(err);
+        const match: NewVisitorCandidate | undefined = candidates[0];
+        if (match) {
+          setDuplicate({ id: match.id, name: getFullName(match.firstName, match.lastName) });
+          return;
+        }
+      }
+      toast.error(err instanceof Error ? err.message : 'Failed to register visitor');
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    // 2. Check them in for today's service
-    await checkInPerson(inserted.id, name);
-
-    // 3. Reset and offer "Register another"
-    setForm(emptyForm);
-    setPhoneError('');
-    setSavedName(name);
-    setSubmitting(false);
   }
 
   const body = savedName ? (
