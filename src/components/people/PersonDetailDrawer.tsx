@@ -167,7 +167,7 @@ export default function PersonDetailDrawer({
       }
     }
     if (open) {
-      loadTeam();
+      void loadTeam();
     }
   }, [open, supabase]);
 
@@ -187,7 +187,7 @@ export default function PersonDetailDrawer({
         setContactLog(normalizeLogs(data as RawLogRow[]));
       }
     }
-    loadHistory();
+    void loadHistory();
     return () => {
       active = true;
     };

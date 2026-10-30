@@ -1,0 +1,582 @@
+// Phase 2: authoritative schema for the local Postgres (no Supabase parts).
+// Written to mirror the live Supabase schema + the decisions recorded in
+// docs/supabase-to-prisma-inventory.md (enums instead of CHECK lists,
+// team_members.auth_user_id -> user_id -> users, auth tables added).
+// Every index is named explicitly (docs/09 requirement).
+// Connection URL lives in prisma.config.ts (required by Prisma 7).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── enums ─────────────────────────────
+
+enum Gender {
+  Male
+  Female
+}
+
+enum AgeGroup {
+  Child
+  Youth
+  Adult
+  Elderly
+}
+
+enum Category {
+  Visitor
+  NewConvert @map("New Convert")
+  M1Class @map("M1 Class")
+  Member
+  Returning
+  Counseling
+}
+
+enum FollowUpStatus {
+  NotStarted @map("Not Started")
+  Contacted
+  Met
+  Ongoing
+  Completed
+}
+
+enum M1Status {
+  NotStarted @map("Not Started")
+  InProgress @map("In Progress")
+  Completed
+}
+
+enum BaptismStatus {
+  NotYet @map("Not yet")
+  Scheduled
+  Baptized
+}
+
+enum ContactPreference {
+  WhatsApp
+  Email
+  SMS
+  Call
+  Both
+}
+
+enum ContactMethod {
+  Call
+  WhatsApp
+  SMS
+  Visit
+  Other
+}
+
+enum ContactOutcome {
+  Reached
+  NoAnswer @map("No answer")
+  ScheduledVisit @map("Scheduled visit")
+  NeedsPastor @map("Needs pastor")
+  WrongNumber @map("Wrong number")
+}
+
+enum TemplatePurpose {
+  follow_up
+  m1_reminder
+  m1_catch_up
+  m1_materials
+  m1_certificate
+  baptism_reminder
+}
+
+enum ClassStatus {
+  Open
+  Closed
+}
+
+enum EnrollmentStatus {
+  Enrolled
+  Completed
+  Dropped
+}
+
+enum AttendanceMark {
+  Present
+  Absent
+  Excused
+}
+
+enum MessagePurpose {
+  reminder
+  catch_up
+  materials
+  certificate
+  baptism
+  other
+}
+
+enum MessageChannel {
+  WhatsApp
+  Email
+  SMS
+  Call
+}
+
+enum AbsenceReason {
+  Work
+  Sick
+  Transport
+  Family
+  Forgot
+  Evening
+  Other
+}
+
+enum ReplySource {
+  Link
+  Volunteer
+}
+
+enum BaptismEventStatus {
+  Scheduled
+  Done
+  Cancelled
+}
+
+enum BaptismRegistrationStatus {
+  Registered
+  Baptized
+  Postponed
+}
+
+enum UserRole {
+  Admin
+  InfoDesk @map("Info Desk")
+  FollowUpCoordinator @map("Follow-up Coordinator")
+  Pastor
+}
+
+// ───────────────────────────── models ─────────────────────────────
+
+model People {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName String @map("first_name")
+  lastName String @map("last_name")
+  gender Gender
+  ageGroup AgeGroup? @map("age_group")
+  phone String
+  location String?
+  category Category @default(Visitor)
+  m1Status M1Status? @map("m1_status")
+  hbfGroup String? @map("hbf_group")
+  howFoundChurch String? @map("how_found_church")
+  dateRegistered DateTime @default(dbgenerated("current_date")) @db.Date @map("date_registered")
+  assignedTo String? @map("assigned_to") @db.Uuid
+  followUpStatus FollowUpStatus @default(NotStarted) @map("follow_up_status")
+  lastContactDate DateTime? @db.Date @map("last_contact_date")
+  baptismStatus BaptismStatus? @map("baptism_status")
+  notes String?
+  registeredBy String? @map("registered_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+  contactPreference ContactPreference? @map("contact_preference")
+  needsPastor Boolean @default(false) @map("needs_pastor")
+  assignedAt DateTime? @db.Timestamptz(6) @map("assigned_at")
+  assignedBy String? @map("assigned_by") @db.Uuid
+  email String?
+  addressDetails String? @map("address_details")
+  needsM1 Boolean @default(false) @map("needs_m1")
+  needsBaptism Boolean @default(false) @map("needs_baptism")
+  // docs/08 1.4 additive columns for the public welcome form
+  churchGroup String? @map("church_group")
+  source String?
+  firstVisitDate DateTime? @db.Date @map("first_visit_date")
+
+  // the team members who act on this person (NO ACTION as live)
+  assignee TeamMembers? @relation("peopleAssignedTo", fields: [assignedTo], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  registeredByRef TeamMembers? @relation("peopleRegisteredBy", fields: [registeredBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  assignedByRef TeamMembers? @relation("peopleAssignedBy", fields: [assignedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  attendanceRows Attendance[]
+  contactLogs ContactLog[]
+  enrolments M1Enrollments[]
+  m1AttendanceRows M1Attendance[]
+  messageLogRows M1MessageLog[]
+  replyLinks M1ReplyLinks[]
+  absenceReplies M1AbsenceReplies[]
+  baptismRegistrations BaptismRegistrations[]
+  welcomeSubmissions WelcomeSubmissions[]
+
+  @@index([phone], name: "people_phone_idx")
+  @@index([dateRegistered], name: "people_date_registered_idx")
+  @@index([assignedTo, followUpStatus], name: "people_assigned_to_follow_up_status_idx")
+  @@index([category], name: "people_category_idx")
+  @@index([hbfGroup], name: "people_hbf_group_idx")
+  @@index([location], name: "people_location_idx")
+  @@map("people")
+}
+
+model TeamMembers {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName String @map("full_name")
+  role UserRole
+  userId String? @unique @map("user_id") @db.Uuid
+
+  user Users? @relation("teamMemberHasUser", fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  peopleAssignedBy People[] @relation("peopleAssignedBy")
+  peopleRegistered People[] @relation("peopleRegisteredBy")
+  peopleAssignedTo People[] @relation("peopleAssignedTo")
+  attendanceCheckedIn Attendance[] @relation("attendanceCheckedInBy")
+  contactLogs ContactLog[] @relation("contactLogContactedBy")
+  templatesCreated MessageTemplates[] @relation("templatesCreatedBy")
+  classesCreated M1Classes[] @relation("classesCreatedBy")
+  enrolmentsMade M1Enrollments[] @relation("enrolmentsEnrolledBy")
+  m1AttendanceMarked M1Attendance[] @relation("m1AttendanceMarkedBy")
+  messagesSent M1MessageLog[] @relation("m1MessageLogSentBy")
+  replyLinksCreated M1ReplyLinks[] @relation("replyLinksCreatedBy")
+  repliesRecorded M1AbsenceReplies[] @relation("absenceRepliesRecordedBy")
+  materialsUploaded M1Materials[] @relation("materialsUploadedBy")
+  baptismEventsCreated BaptismEvents[] @relation("baptismEventsCreatedBy")
+  baptismRegistrationsCreated BaptismRegistrations[] @relation("baptismRegistrationsCreatedBy")
+
+  @@map("team_members")
+}
+
+model Users {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email String @unique
+  passwordHash String @map("password_hash")
+  role UserRole
+  active Boolean @default(true)
+  failedLoginCount Int @default(0) @map("failed_login_count")
+  lockedUntil DateTime? @db.Timestamptz(6) @map("locked_until")
+  lastLoginAt DateTime? @db.Timestamptz(6) @map("last_login_at")
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+
+  teamMember TeamMembers? @relation("teamMemberHasUser")
+  sessions Sessions[]
+  auditLog AuditLog[]
+
+  @@map("users")
+}
+
+model Sessions {
+  id String @id @db.Text // hashed session id (docs/09: store hashed)
+  userId String @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  lastSeenAt DateTime @default(now()) @db.Timestamptz(6) @map("last_seen_at") // idle timeout (Phase 3)
+  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
+  ipHash String? @db.Text @map("ip_hash")
+  userAgent String? @db.Text @map("user_agent")
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], name: "sessions_user_id_idx")
+  @@index([expiresAt], name: "sessions_expires_at_idx")
+  @@map("sessions")
+}
+
+model AuditLog {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String? @map("user_id") @db.Uuid
+  action String
+  entity String
+  entityId String? @db.Uuid @map("entity_id")
+  // never contains personal data (no names, phones, notes content)
+  message String
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  user Users? @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([createdAt], name: "audit_log_created_at_idx")
+  @@index([userId], name: "audit_log_user_id_idx")
+  @@map("audit_log")
+}
+
+model Attendance {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  serviceDate DateTime @default(dbgenerated("current_date")) @db.Date @map("service_date")
+  serviceName String @default("Sunday Service") @map("service_name")
+  checkedInBy String? @map("checked_in_by") @db.Uuid
+  checkedInAt DateTime @default(now()) @db.Timestamptz(6) @map("checked_in_at")
+
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  checkedInByRef TeamMembers? @relation("attendanceCheckedInBy", fields: [checkedInBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([personId, serviceDate, serviceName], map: "attendance_person_id_service_date_service_name_key")
+  @@index([serviceDate, personId], name: "attendance_date_person_idx")
+  @@map("attendance")
+}
+
+model ContactLog {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  contactedBy String @map("contacted_by") @db.Uuid
+  contactedAt DateTime @default(now()) @db.Timestamptz(6) @map("contacted_at")
+  method ContactMethod
+  outcome ContactOutcome
+  note String?
+  finished Boolean @default(false)
+
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contactedByRef TeamMembers @relation("contactLogContactedBy", fields: [contactedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([personId, contactedAt(sort: Desc)], name: "contact_log_person_idx")
+  @@map("contact_log")
+}
+
+model MessageTemplates {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @unique
+  body String
+  suggestedCategory Category? @map("suggested_category")
+  sortOrder Int @default(0) @map("sort_order")
+  active Boolean @default(true)
+  createdBy String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt DateTime @default(now()) @db.Timestamptz(6) @map("updated_at")
+  purpose TemplatePurpose @default(follow_up)
+
+  createdByRef TeamMembers? @relation("templatesCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@map("message_templates")
+}
+
+model M1Classes {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title String
+  venue String?
+  requiredDays Int @default(3) @map("required_days") // CHECK 1..10 added by custom migration
+  status ClassStatus @default(Open)
+  createdBy String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  archivedAt DateTime? @db.Timestamptz(6) @map("archived_at")
+
+  createdByRef TeamMembers? @relation("classesCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  sessions M1Sessions[]
+  enrolments M1Enrollments[]
+  messageLog M1MessageLog[]
+  materials M1Materials[]
+
+  @@map("m1_classes")
+}
+
+model M1Sessions {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId String @map("class_id") @db.Uuid
+  dayNumber Int @map("day_number") // CHECK >= 1 added by custom migration
+  sessionDate DateTime @db.Date @map("session_date")
+  startTime DateTime? @db.Time(6) @map("start_time")
+  topic String?
+  summary String?
+  closed Boolean @default(false)
+
+  class M1Classes @relation(fields: [classId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  m1Attendance M1Attendance[]
+  replyLinks M1ReplyLinks[]
+  messageLog M1MessageLog[]
+  materials M1Materials[]
+  absenceReplies M1AbsenceReplies[]
+
+  @@unique([classId, dayNumber], map: "m1_sessions_class_id_day_number_key")
+  @@map("m1_sessions")
+}
+
+model M1Enrollments {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId String @map("class_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  enrolledAt DateTime @default(now()) @db.Timestamptz(6) @map("enrolled_at")
+  enrolledBy String? @map("enrolled_by") @db.Uuid
+  walkIn Boolean @default(false) @map("walk_in")
+  status EnrollmentStatus @default(Enrolled)
+  certificateNo String? @unique @db.Text @map("certificate_no")
+  certificateIssuedAt DateTime? @db.Timestamptz(6) @map("certificate_issued_at")
+  certificateOverrideNote String? @db.Text @map("certificate_override_note")
+
+  class M1Classes @relation(fields: [classId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  enrolledByRef TeamMembers? @relation("enrolmentsEnrolledBy", fields: [enrolledBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([classId, personId], map: "m1_enrollments_class_id_person_id_key")
+  @@map("m1_enrollments")
+}
+
+model M1Attendance {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String @map("session_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  status AttendanceMark
+  markedBy String? @map("marked_by") @db.Uuid
+  markedAt DateTime @default(now()) @db.Timestamptz(6) @map("marked_at")
+
+  session M1Sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  markedByRef TeamMembers? @relation("m1AttendanceMarkedBy", fields: [markedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([sessionId, personId], map: "m1_attendance_session_id_person_id_key")
+  @@index([personId], name: "m1_attendance_person_idx")
+  @@map("m1_attendance")
+}
+
+model M1MessageLog {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId String? @map("class_id") @db.Uuid
+  sessionId String? @map("session_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  purpose MessagePurpose
+  channel MessageChannel
+  sentBy String? @map("sent_by") @db.Uuid
+  sentAt DateTime @default(now()) @db.Timestamptz(6) @map("sent_at")
+
+  class M1Classes? @relation(fields: [classId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  session M1Sessions? @relation(fields: [sessionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sentByRef TeamMembers? @relation("m1MessageLogSentBy", fields: [sentBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([personId, sentAt(sort: Desc)], name: "m1_message_log_person_idx")
+  @@map("m1_message_log")
+}
+
+model M1ReplyLinks {
+  // token and expiresAt are generated by the API when it creates a link
+  // (random 32-char token, now() + 21 days); no SQL expression default so
+  // introspection and the schema stay in exact agreement.
+  token String @id @db.Text
+  sessionId String @map("session_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  createdBy String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  expiresAt DateTime @db.Timestamptz(6) @map("expires_at")
+  usedAt DateTime? @db.Timestamptz(6) @map("used_at")
+
+  session M1Sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdByRef TeamMembers? @relation("replyLinksCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([sessionId, personId], map: "m1_reply_links_session_id_person_id_key")
+  @@map("m1_reply_links")
+}
+
+model M1AbsenceReplies {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String @map("session_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  reason AbsenceReason
+  note String?
+  source ReplySource @default(Link)
+  recordedBy String? @map("recorded_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  session M1Sessions @relation(fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  recordedByRef TeamMembers? @relation("absenceRepliesRecordedBy", fields: [recordedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@map("m1_absence_replies")
+}
+
+model M1Materials {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId String @map("class_id") @db.Uuid
+  sessionId String? @map("session_id") @db.Uuid
+  title String
+  storagePath String @map("storage_path") // path under the local materials volume (Phase 3/5)
+  mimeType String? @map("mime_type")
+  sizeBytes BigInt? @map("size_bytes") @db.BigInt
+  uploadedBy String? @map("uploaded_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  class M1Classes @relation(fields: [classId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  session M1Sessions? @relation(fields: [sessionId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  uploadedByRef TeamMembers? @relation("materialsUploadedBy", fields: [uploadedBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@map("m1_materials")
+}
+
+model BaptismEvents {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventDate DateTime @db.Date @map("event_date")
+  eventTime DateTime? @db.Time(6) @map("event_time")
+  venue String?
+  officiant String?
+  status BaptismEventStatus @default(Scheduled)
+  notes String?
+  createdBy String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+  archivedAt DateTime? @db.Timestamptz(6) @map("archived_at")
+
+  createdByRef TeamMembers? @relation("baptismEventsCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  registrations BaptismRegistrations[]
+
+  @@map("baptism_events")
+}
+
+model BaptismRegistrations {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId String @map("event_id") @db.Uuid
+  personId String @map("person_id") @db.Uuid
+  status BaptismRegistrationStatus @default(Registered)
+  baptizedAt DateTime? @db.Timestamptz(6) @map("baptized_at")
+  certificateNo String? @unique @db.Text @map("certificate_no")
+  certificateIssuedAt DateTime? @db.Timestamptz(6) @map("certificate_issued_at")
+  createdBy String? @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(6) @map("created_at")
+
+  event BaptismEvents @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  person People @relation(fields: [personId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  createdByRef TeamMembers? @relation("baptismRegistrationsCreatedBy", fields: [createdBy], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([eventId, personId], map: "baptism_registrations_event_id_person_id_key")
+  @@map("baptism_registrations")
+}
+
+// ---- Public welcome form (docs/08 1.4, additive tables) --------------------
+// Check constraints from the docs live in the migration/validation code.
+
+model WelcomeSubmissions {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId String? @map("person_id") @db.Uuid
+  qrSource String? @map("qr_source")
+  fullName String @map("full_name")
+  phone String
+  location String
+  preferredContact String @map("preferred_contact")
+  firstTime Boolean @map("first_time")
+  fellowshipDuration String? @map("fellowship_duration")
+  foundVia String? @map("found_via")
+  invitedByText String? @map("invited_by_text")
+  familyStatus String? @map("family_status")
+  adultsCount Int? @map("adults_count")
+  childrenCount Int? @map("children_count")
+  wantsFamilyRegistration Boolean @default(false) @map("wants_family_registration")
+  classReadiness String? @map("class_readiness")
+  feedback String?
+  consent Boolean
+  status String @default("new")
+  submittedAt DateTime @default(now()) @db.Timestamptz(6) @map("submitted_at")
+  checkedInAt DateTime? @db.Timestamptz(6) @map("checked_in_at")
+  reviewedBy String? @map("reviewed_by") @db.Uuid
+
+  person People? @relation(fields: [personId], references: [id], onUpdate: NoAction, onDelete: SetNull)
+  classInterest WelcomeClassInterest[]
+
+  @@index([status, submittedAt(sort: Desc)], name: "welcome_submissions_status_idx")
+  @@index([phone], name: "welcome_submissions_phone_idx")
+  @@map("welcome_submissions")
+}
+
+model WelcomeClassInterest {
+  submissionId String @map("submission_id") @db.Uuid
+  // The class catalogue is not modelled yet (docs/08 checks against
+  // class_types). Free-form identifier, validated against the known list.
+  classTypeId String @map("class_type_id")
+
+  submission WelcomeSubmissions @relation(fields: [submissionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([submissionId, classTypeId])
+  @@map("welcome_class_interest")
+}

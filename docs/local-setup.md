@@ -93,11 +93,38 @@ bash scripts/db-reset-dev.sh  # ERASES all data and re-initialises. For developm
 
 `db-reset-dev.sh` checks `.env`'s `CHURCH_ENV` first: it only runs when it literally says `dev`. On the real machine that file will say `production`, and then this script **refuses** — that is the whole point: you can never destroy real data from a dev PC by running the wrong script by muscle memory, and if you run it in dev it still asks you to type `reset`.
 
-## 5. From a Windows SQL client (optional)
+## 5. Create the schema and demo data with Prisma (Phase 2 onwards)
+
+The database now owns its schema through **Prisma**. On a fresh machine the tables do not exist yet; create them with migrations, never with hand-written SQL:
+
+```bash
+# WSL needs Node minutes once. nvm keeps it in your home folder (no sudo):
+#   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+#   . ~/.nvm/nvm.sh && nvm install --lts
+. ~/.nvm/nvm.sh
+
+npm install                 # installs the app deps; it also runs `prisma generate`
+npx prisma migrate deploy   # creates every table, trigger and index from prisma/migrations
+npx prisma db seed          # fake demo rows + 4 logins; the RANDOM passwords print ONCE here
+```
+
+Notes:
+
+- `npx prisma migrate deploy` reads its connection from `.env` (the same `POSTGRES_*`/`PG_PORT` keys the database uses) and runs as `church_owner` — migrations are an owner task. Your typed passwords stay out of this conversation; the seed passwords appear only in your terminal on first run, or on any later run after a `db-reset-dev.sh`.
+- `npx prisma db seed` connects as `church_app` — the same limited role the future API uses, so seeding doubles as a test that the app role can actually do its work.
+- Anything in the database that went out of sync can be proved instantly:
+
+```bash
+bash scripts/db-drift-check.sh   # exits 1 if the database and prisma/schema.prisma disagree
+```
+
+- If you change `prisma/schema.prisma` (a task for project sessions, not curiosity), the new migration is created with `npx prisma migrate dev --create-only` — review the generated SQL, then `npx prisma migrate deploy` it.
+
+## 6. From a Windows SQL client (optional)
 
 DataGrip / pgAdmin etc. — Host `127.0.0.1`, port = `PG_PORT` in `.env` (5432 unless changed there), database/user/password **read them from `.env`** in the repo root (never copy them into chat or screenshots). Works only while this PC runs the container — that's `127.0.0.1` doing its job.
 
-## 6. If something breaks
+## 7. If something breaks
 
 ```bash
 docker logs church-db --tail 50      # what the database says
@@ -112,13 +139,15 @@ Common ones:
 - **"password authentication failed"** — you typed your old password into a client. Read `.env`. Or the volume is older than your `.env` (passwords changed on disk) — `bash scripts/db-reset-dev.sh` makes them agree.
 - **Docker commands "permission denied" or missing** in WSL — Docker Desktop is off, or its WSL Integration for this distro is off (Section 0, step 2).
 
-## 7. What was tested
+## 8. What was tested
 
-- Every command in Sections 2–6 was run from a **clean clone in `~/projects`** (WSL filesystem).
+- Every command in Sections 2–7 was run from a **clean clone in `~/projects`** (WSL filesystem), including `prisma migrate deploy`, `prisma db seed` (twice — idempotent) and `db-drift-check.sh` (clean), on a from-empty reset database.
 - The role separation was tested: `church_app` can connect and has no superuser rights; `church_owner` owns; the app password is not in git.
+- The seed's trigger arithmetic was read back from psql: M1 ticks moved `people.m1_status` to "In Progress", the "needs pastor" log stamped `needs_pastor`, `revert` re-computed follow-up fields after deletion, `updated_at` advanced on update.
+- `EXPLAIN` confirmed the planned indexes are used: `people_phone_idx`, `people_assigned_to_follow_up_status_idx`, `attendance_date_person_idx`, `contact_log_person_idx`, `m1_attendance_person_idx`, `sessions_user_id_idx`.
 - The port binding was tested from another machine's perspective? **No — see the "not tested" line below.**
 
-## 8. Not tested (honestly)
+## 9. Not tested (honestly)
 
 - LAN isolation by a **second physical device**: verified by configuration (`127.0.0.1` binding) but not by trying from someone else's laptop/phone.
 - WSL2 memory limits (`.wslconfig`) were **not configured during this phase**: on a machine with heavy other use, Docker may grab more RAM than the church PC can spare. It is scheduled with the Phase 7 "small machine" work.

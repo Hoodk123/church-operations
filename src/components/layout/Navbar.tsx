@@ -46,7 +46,7 @@ export default function Navbar({
   }
 
   function handleShare() {
-    navigator.clipboard.writeText(window.location.href);
+    void navigator.clipboard.writeText(window.location.href);
   }
 
   return (

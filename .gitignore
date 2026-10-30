@@ -30,3 +30,6 @@ dist-ssr
 
 # Docker / database volume dumps (never commit database files)
 *.dump
+
+# Generated Prisma client (created by `prisma generate`, see docs/local-setup)
+src/generated

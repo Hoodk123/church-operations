@@ -114,9 +114,9 @@ export default function PeopleTableToolbar({
     const assigned = [...new Set(people.map((p) => p.assigned_to_name).filter(Boolean))] as string[];
     const hbf = [...new Set(people.map((p) => p.hbf_group).filter(Boolean))] as string[];
     return {
-      location: locs.sort(),
-      assigned_to_name: assigned.sort(),
-      hbf_group: hbf.sort(),
+      location: locs.sort((a, b) => a.localeCompare(b)),
+      assigned_to_name: assigned.sort((a, b) => a.localeCompare(b)),
+      hbf_group: hbf.sort((a, b) => a.localeCompare(b)),
     };
   }, [people]);
 

@@ -100,7 +100,7 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
       }
     }
     if (open) {
-      loadTeam();
+      void loadTeam();
     }
   }, [open, supabase]);
 

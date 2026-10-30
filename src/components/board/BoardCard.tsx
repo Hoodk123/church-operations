@@ -1,10 +1,11 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import { CheckIcon, MoreHorizontal } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -50,18 +51,20 @@ function MoveToMenu({
         }
       />
       <DropdownMenuContent align="end" side="top">
-        <DropdownMenuLabel>Move to</DropdownMenuLabel>
-        {followUpStatuses.map((s) => (
-          <DropdownMenuItem
-            key={s}
-            disabled={s === status}
-            onClick={() => onMoveTo(s)}
-            className="cursor-pointer"
-          >
-            {s === status ? <CheckIcon className="size-3.5" /> : null}
-            {s}
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          {followUpStatuses.map((s) => (
+            <DropdownMenuItem
+              key={s}
+              disabled={s === status}
+              onClick={() => onMoveTo(s)}
+              className="cursor-pointer"
+            >
+              {s === status ? <CheckIcon className="size-3.5" /> : null}
+              {s}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -125,6 +128,13 @@ interface CardActions {
   onMoveTo: (status: BoardStatus) => void;
 }
 
+function openOnKey(e: KeyboardEvent<HTMLDivElement>, open: () => void) {
+  if (e.target !== e.currentTarget) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    open();
+  }
+}
 export function DragCard({ person, onOpen, onMoveTo }: CardActions) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: person.id,
@@ -143,7 +153,10 @@ export function DragCard({ person, onOpen, onMoveTo }: CardActions) {
       style={style}
       {...attributes}
       {...listeners}
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(person)}
+      onKeyDown={(e) => openOnKey(e, () => onOpen(person))}
       className={cn(
         'relative cursor-grab rounded-xl border bg-card p-3 shadow-sm touch-none transition-shadow select-none focus:outline-hidden',
         'hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50',
@@ -158,9 +171,12 @@ export function DragCard({ person, onOpen, onMoveTo }: CardActions) {
 export function PlainCard({ person, onOpen, onMoveTo }: CardActions) {
   return (
     <div
-      onClick={() => onOpen(person)}
-      className="cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition-colors active:bg-accent/60"
-    >
+    role="button"
+    tabIndex={0}
+    onClick={() => onOpen(person)}
+    onKeyDown={(e) => openOnKey(e, () => onOpen(person))}
+    className="cursor-pointer rounded-xl border bg-card p-3 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus:outline-hidden active:bg-accent/60"
+  >
       <BoardCardBody person={person} onMoveTo={onMoveTo} />
     </div>
   );
