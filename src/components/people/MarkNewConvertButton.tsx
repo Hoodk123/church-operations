@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
+import { markNewConvert } from '@/lib/api/people';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import {
@@ -27,21 +26,19 @@ export function MarkNewConvertButton({
   className,
   onSaved,
 }: MarkNewConvertButtonProps) {
-  const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function confirm() {
     setSaving(true);
-    const { error } = await supabase
-      .from('people')
-      .update({ category: 'New Convert', needs_pastor: true })
-      .eq('id', person.id);
-    setSaving(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      await markNewConvert(person.id);
+    } catch (e) {
+      setSaving(false);
+      toast.error(e instanceof Error ? e.message : 'Failed to mark New Convert');
       return;
     }
+    setSaving(false);
     toast.success(`${person.first_name} ${person.last_name} marked as a New Convert`);
     setOpen(false);
     onSaved();

@@ -12,7 +12,7 @@ import {
   flexRender,
   type VisibilityState,
 } from '@tanstack/react-table';
-import { createClient } from '@/lib/supabase/client';
+import { listAllPeople } from '@/lib/api/people';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -39,8 +39,8 @@ import PeopleTableToolbar, {
 } from './PeopleTableToolbar';
 import PersonDetailDrawer from './PersonDetailDrawer';
 import AddPersonForm from './AddPersonForm';
-import { supabaseErrorMessage } from '@/lib/rls-error';
 import { defaultColumns, optionalColumns, DEFAULT_VISIBLE_COLUMNS, type Person } from './columns';
+import { personApiToRow } from './adapt';
 
 function toColumnFilters(filters: FilterState) {
   return Object.entries(filters)
@@ -89,7 +89,6 @@ export default function PeopleTable() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(25);
 
-  const supabase = createClient();
   const [searchParams] = useSearchParams();
   const linkedPersonId = searchParams.get('person');
 
@@ -111,23 +110,9 @@ export default function PeopleTable() {
   };
 
   const loadPeople = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('people')
-      .select('*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)')
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      toast.error(supabaseErrorMessage(error));
-      setLoading(false);
-      return;
-    }
-
-    if (data) {
-      const mapped = data.map((r: any) => ({
-        ...r,
-        assigned_to_name: r.assigned_to_name?.full_name ?? null,
-        registered_by_name: r.registered_by_name?.full_name ?? null,
-      }));
+    try {
+      const apiPeople = await listAllPeople();
+      const mapped: Person[] = apiPeople.map(personApiToRow);
       setPeople(mapped);
       if (linkedPersonId) {
         const match = mapped.find((p: Person) => p.id === linkedPersonId);
@@ -136,9 +121,11 @@ export default function PeopleTable() {
           setDrawerOpen(true);
         }
       }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load people');
     }
     setLoading(false);
-  }, [supabase, linkedPersonId]);
+  }, [linkedPersonId]);
 
   useEffect(() => {
     void loadPeople();

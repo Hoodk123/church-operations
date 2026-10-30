@@ -15,11 +15,24 @@ import {
   Clock,
   History,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import {
+  getPersonDetail,
+  updatePerson,
+  assignPerson,
+  deletePerson,
+  listTeamMembers,
+} from '@/lib/api/people';
 import { useShellMember } from '@/components/layout/shell';
 import { type SelectOption } from '@/lib/select-items';
 import LogContactSheet from '@/components/followups/LogContactSheet';
 import { MarkNewConvertButton } from './MarkNewConvertButton';
+import {
+  contactLogApiToRow,
+  personApiToRow,
+  teamMemberToOption,
+  enumReq,
+  enumOrNull,
+} from './adapt';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -73,15 +86,6 @@ function formatDate(dateStr: string | null): string | null {
   }).format(new Date(dateStr));
 }
 
-interface ContactLogRow {
-  id: string;
-  contacted_at: string;
-  method: string;
-  outcome: string;
-  note: string | null;
-  logged_by: { full_name: string } | null;
-}
-
 const OUTCOME_COLORS: Record<string, string> = {
   Reached: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800',
   'No answer': 'bg-neutral-100 text-neutral-800 border-neutral-200 dark:bg-neutral-900/30 dark:text-neutral-400 dark:border-neutral-800',
@@ -90,26 +94,13 @@ const OUTCOME_COLORS: Record<string, string> = {
   'Wrong number': 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800',
 };
 
-interface RawLogRow {
+export interface ContactLogRow {
   id: string;
   contacted_at: string;
   method: string;
   outcome: string;
   note: string | null;
-  logged_by: { full_name: string }[] | { full_name: string } | null;
-}
-
-function normalizeLogs(data: RawLogRow[]): ContactLogRow[] {
-  return data.map((row) => ({
-    id: row.id,
-    contacted_at: row.contacted_at,
-    method: row.method,
-    outcome: row.outcome,
-    note: row.note,
-    logged_by: Array.isArray(row.logged_by)
-      ? (row.logged_by[0] ?? null)
-      : ((row.logged_by as { full_name: string } | null) ?? null),
-  }));
+  logged_by: { full_name: string } | null;
 }
 
 interface PersonDetailDrawerProps {
@@ -144,7 +135,6 @@ export default function PersonDetailDrawer({
   const [editNeedsM1, setEditNeedsM1] = useState(false);
   const [editNeedsBaptism, setEditNeedsBaptism] = useState(false);
   const [enrolledClass, setEnrolledClass] = useState<{ title: string; status: string } | null>(null);
-  const supabase = createClient();
   const member = useShellMember();
   const memberId = member?.id ?? '';
 
@@ -157,41 +147,12 @@ export default function PersonDetailDrawer({
   );
 
   useEffect(() => {
-    async function loadTeam() {
-      const { data } = await supabase
-        .from('team_members')
-        .select('id, full_name')
-        .order('full_name', { ascending: true });
-      if (data) {
-        setTeamMembers(data);
-      }
-    }
     if (open) {
-      void loadTeam();
+      void listTeamMembers()
+        .then((data) => setTeamMembers(data.map(teamMemberToOption)))
+        .catch(() => {/* keep current list on failure */});
     }
-  }, [open, supabase]);
-
-  useEffect(() => {
-    const id = person?.id;
-    if (!open || !id) return;
-    let active = false;
-    async function loadHistory() {
-      const { data, error: loadErr } = await supabase
-        .from('contact_log')
-        .select('id, method, outcome, note, contacted_at, logged_by:team_members(full_name)')
-        .eq('person_id', id)
-        .order('contacted_at', { ascending: false })
-        .limit(50);
-      if (active) return;
-      if (!loadErr && data) {
-        setContactLog(normalizeLogs(data as RawLogRow[]));
-      }
-    }
-    void loadHistory();
-    return () => {
-      active = true;
-    };
-  }, [supabase, open, person]);
+  }, [open]);
 
   useEffect(() => {
     const id = person?.id;
@@ -199,30 +160,19 @@ export default function PersonDetailDrawer({
       setEnrolledClass(null);
       return;
     }
-    let active = true;
-    async function loadEnrollment() {
-      const { data } = await supabase
-        .from('m1_enrollments')
-        .select('status, m1_classes(title)')
-        .eq('person_id', id)
-        .order('enrolled_at', { ascending: false })
-        .limit(1);
-      if (!active) return;
-      const row = (data ?? [])[0] as
-        | { status: string; m1_classes: { title: string } | { title: string }[] | null }
-        | undefined;
-      if (!row) {
-        setEnrolledClass(null);
-        return;
-      }
-      const cls = Array.isArray(row.m1_classes) ? row.m1_classes[0] : row.m1_classes;
-      setEnrolledClass(cls ? { title: cls.title, status: row.status } : null);
-    }
-    void loadEnrollment();
+    let active = false;
+    void getPersonDetail(id)
+      .then((detail) => {
+        if (active) return;
+        setContactLog(detail.contactLogs.map(contactLogApiToRow));
+        const le = detail.latestEnrollment;
+        setEnrolledClass(le && le.classTitle ? { title: le.classTitle, status: le.status } : null);
+      })
+      .catch(() => {/* keep stale history on failure */});
     return () => {
-      active = false;
+      active = true;
     };
-  }, [supabase, open, person]);
+  }, [open, person]);
 
   if (!person) return null;
 
@@ -272,65 +222,56 @@ export default function PersonDetailDrawer({
     setSaving(true);
     setError('');
 
-    const { data, error: err } = await supabase
-      .from('people')
-      .update({
-        first_name: editForm.first_name.trim(),
-        last_name: editForm.last_name.trim(),
-        gender: editForm.gender || null,
-        age_group: editForm.age_group || null,
+    try {
+      await updatePerson(personId, {
+        firstName: editForm.first_name.trim(),
+        lastName: editForm.last_name.trim(),
+        gender: enumReq(genders, editForm.gender || null),
+        ageGroup: enumOrNull(ageGroups, editForm.age_group),
         phone: editForm.phone.trim(),
         location: editForm.location.trim() || null,
-        hbf_group: editForm.hbf_group.trim() || null,
-        category: editForm.category,
-        m1_status: editForm.m1_status || null,
-        baptism_status: editForm.baptism_status || null,
-        how_found_church: editForm.how_found_church.trim() || null,
-        assigned_to: editForm.assigned_to || null,
-        follow_up_status: editForm.follow_up_status,
-        contact_preference: editForm.contact_preference || null,
+        hbfGroup: editForm.hbf_group.trim() || null,
+        category: enumReq(categories, editForm.category),
+        m1Status: enumOrNull(m1Statuses, editForm.m1_status),
+        baptismStatus: enumOrNull(baptismStatuses, editForm.baptism_status),
+        howFoundChurch: editForm.how_found_church.trim() || null,
+        followUpStatus: enumReq(followUpStatuses, editForm.follow_up_status),
+        contactPreference: enumOrNull(contactPreferenceOptions, editForm.contact_preference),
         email: editForm.email.trim() || null,
-        address_details: editForm.address_details.trim() || null,
-        needs_m1: editNeedsM1,
-        needs_baptism: editNeedsBaptism,
+        addressDetails: editForm.address_details.trim() || null,
+        needsM1: editNeedsM1,
+        needsBaptism: editNeedsBaptism,
         notes: editForm.notes.trim() || null,
-      })
-      .eq('id', personId)
-      .select(
-        '*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)'
-      )
-      .single();
-
-    setSaving(false);
-
-    if (err) {
-      setError(err.message);
-      return;
+      });
+      // Changing the assignee is a separate action (setAssign) that stamps
+      // assignedAt/assignedBy; skip it when the value did not change.
+      if (editForm.assigned_to !== (p.assigned_to ?? '')) {
+        await assignPerson(personId, editForm.assigned_to || null);
+      }
+      // Re-fetch so the parent gets the whole row with names filled in,
+      // exactly like the old single round-trip did.
+      const detail = await getPersonDetail(personId);
+      onUpdated(personApiToRow(detail.person));
+      setEditing(false);
+      setEditForm({});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save changes');
+    } finally {
+      setSaving(false);
     }
-
-    onUpdated({
-      ...data,
-      assigned_to_name: data.assigned_to_name?.full_name ?? null,
-      registered_by_name: data.registered_by_name?.full_name ?? null,
-    });
-    setEditing(false);
-    setEditForm({});
   }
 
   async function handleDelete() {
     setDeleting(true);
-    const { error: err } = await supabase
-      .from('people')
-      .delete()
-      .eq('id', personId);
-    setDeleting(false);
-
-    if (err) {
-      setError(err.message);
+    try {
+      await deletePerson(personId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to delete');
       setDeleteOpen(false);
       return;
+    } finally {
+      setDeleting(false);
     }
-
     onDeleted(personId);
   }
 
@@ -798,18 +739,9 @@ export default function PersonDetailDrawer({
         personName={`${p.first_name} ${p.last_name}`}
         memberId={memberId}
         onSaved={() => {
-          async function reload() {
-            const { data, error: loadErr } = await supabase
-              .from('contact_log')
-              .select('id, method, outcome, note, contacted_at, logged_by:team_members(full_name)')
-              .eq('person_id', personId)
-              .order('contacted_at', { ascending: false })
-              .limit(50);
-            if (!loadErr && data) {
-              setContactLog(normalizeLogs(data as RawLogRow[]));
-            }
-          }
-          void reload();
+          void getPersonDetail(personId)
+            .then((detail) => setContactLog(detail.contactLogs.map(contactLogApiToRow)))
+            .catch(() => {/* keep current log on failure */});
         }}
       />
 

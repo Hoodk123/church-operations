@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { listTeamMembers, createPerson } from '@/lib/api/people';
+import { teamMemberToOption, enumReq, enumOrNull } from './adapt';
 import { validateRwandaPhone } from '@/lib/phone';
 import { type SelectOption } from '@/lib/select-items';
 import { Button } from '@/components/ui/button';
@@ -87,22 +88,14 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const supabase = createClient();
 
   useEffect(() => {
-    async function loadTeam() {
-      const { data } = await supabase
-        .from('team_members')
-        .select('id, full_name')
-        .order('full_name', { ascending: true });
-      if (data) {
-        setTeamMembers(data);
-      }
-    }
     if (open) {
-      void loadTeam();
+      void listTeamMembers()
+        .then((data) => setTeamMembers(data.map(teamMemberToOption)))
+        .catch(() => {/* keep current list on failure */});
     }
-  }, [open, supabase]);
+  }, [open]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -119,8 +112,8 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.first_name.trim() || !form.last_name.trim()) {
-      setError('First name and last name are required.');
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.gender) {
+      setError('First name, last name and gender are required.');
       return;
     }
 
@@ -133,59 +126,37 @@ export default function AddPersonForm({ open, onOpenChange, onCreated }: AddPers
     setSubmitting(true);
     setError('');
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData?.session?.user;
-    if (!user) {
-      setError('Not authenticated.');
-      setSubmitting(false);
-      return;
-    }
-
-    let registeredById: string | null = null;
     try {
-      const { data: member } = await supabase
-        .from('team_members')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .maybeSingle();
-      registeredById = member?.id ?? null;
-    } catch {
-      // Offline / network fallback
+      // registeredBy is set server-side from the session user.
+      await createPerson({
+        firstName: form.first_name.trim(),
+        lastName: form.last_name.trim(),
+        gender: enumReq(genders, form.gender),
+        phone: phoneValidation.formatted,
+        location: form.location.trim() || null,
+        hbfGroup: form.hbf_group.trim() || null,
+        category: enumReq(categories, form.category),
+        followUpStatus: enumReq(followUpStatuses, form.follow_up_status),
+        assignedTo: form.assigned_to || null,
+        ageGroup: enumOrNull(ageGroups, form.age_group),
+        m1Status: enumOrNull(m1Statuses, form.m1_status),
+        howFoundChurch: form.how_found_church.trim() || null,
+        baptismStatus: enumOrNull(baptismStatuses, form.baptism_status),
+        contactPreference: enumOrNull(contactPreferenceOptions, form.contact_preference),
+        email: form.email.trim() || null,
+        addressDetails: form.address_details.trim() || null,
+        needsM1: form.needs_m1,
+        needsBaptism: form.needs_baptism,
+        notes: form.notes.trim() || null,
+      });
+      setForm(emptyForm);
+      onCreated();
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add person');
+    } finally {
+      setSubmitting(false);
     }
-
-    const { error: err } = await supabase.from('people').insert({
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
-      gender: form.gender || null,
-      phone: phoneValidation.formatted,
-      location: form.location.trim() || null,
-      hbf_group: form.hbf_group.trim() || null,
-      category: form.category,
-      follow_up_status: form.follow_up_status,
-      assigned_to: form.assigned_to || null,
-      age_group: form.age_group || null,
-      m1_status: form.m1_status || null,
-      how_found_church: form.how_found_church.trim() || null,
-      baptism_status: form.baptism_status || null,
-      contact_preference: form.contact_preference || null,
-      email: form.email.trim() || null,
-      address_details: form.address_details.trim() || null,
-      needs_m1: form.needs_m1,
-      needs_baptism: form.needs_baptism,
-      notes: form.notes.trim() || null,
-      registered_by: registeredById,
-    });
-
-    setSubmitting(false);
-
-    if (err) {
-      setError(err.message);
-      return;
-    }
-
-    setForm(emptyForm);
-    onCreated();
-    onOpenChange(false);
   }
 
   function handleOpenChange(nextOpen: boolean) {
