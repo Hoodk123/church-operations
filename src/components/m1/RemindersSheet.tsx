@@ -72,7 +72,7 @@ export default function RemindersSheet({ open, onOpenChange, klass, session }: R
     let cancelled = false;
     Promise.all([
       fetchEnrollments(supabase, klass.id),
-      Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(supabase, t.purpose))),
+      Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(t.purpose))),
       supabase
         .from('m1_message_log')
         .select('person_id, sent_at')

@@ -100,8 +100,8 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
   }, [supabase, classId, nonce]);
 
   useEffect(() => {
-    fetchTemplate(supabase, 'm1_catch_up').then((t) => setTemplate(t?.body ?? ''));
-  }, [supabase]);
+    fetchTemplate('m1_catch_up').then((t) => setTemplate(t?.body ?? ''));
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {

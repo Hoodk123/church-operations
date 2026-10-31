@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Copy, MessageCircle, Pencil, Send, ChevronDown } from 'lucide-react';
 import { parsePhoneNumber } from 'libphonenumber-js';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { phoneDigits } from '@/lib/phone';
 import { useIsMobile } from '@/lib/use-is-mobile';
 import { type SelectOption } from '@/lib/select-items';
+import { listTemplates } from '@/lib/api/templates';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,7 +23,6 @@ interface MessagePanelProps {
   person: FollowUpPerson | null;
   seedCategory: string | null;
   volunteerName: string;
-  memberId: string;
   isAdmin: boolean;
 }
 
@@ -44,10 +42,8 @@ export default function MessagePanel({
   person,
   seedCategory,
   volunteerName,
-  memberId,
   isAdmin,
 }: MessagePanelProps) {
-  const supabase = createClient();
   const isMobile = useIsMobile();
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [manualId, setManualId] = useState<string | null>(null);
@@ -56,18 +52,13 @@ export default function MessagePanel({
   const [openOnMobile, setOpenOnMobile] = useState(false);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('message_templates')
-      .select('id, name, body, suggested_category, sort_order, active')
-      .eq('active', true)
-      .order('sort_order', { ascending: true });
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      setTemplates(await listTemplates({ active: true }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load templates.');
       setTemplates([]);
-      return;
     }
-    setTemplates((data ?? []) as Template[]);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     async function run() {
@@ -80,7 +71,7 @@ export default function MessagePanel({
   const selectedId = useMemo(() => {
     if (!templates || templates.length === 0) return '';
     if (manualId && templates.some((t) => t.id === manualId)) return manualId;
-    const match = templates.find((t) => t.suggested_category === seedCategory);
+    const match = templates.find((t) => t.suggestedCategory === seedCategory);
     return (match ?? templates[0]).id;
   }, [templates, manualId, seedCategory]);
 
@@ -226,7 +217,6 @@ export default function MessagePanel({
         <TemplatesDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          memberId={memberId}
           onChanged={() => {
             setManualId(null);
             void load();

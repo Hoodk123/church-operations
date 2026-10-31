@@ -235,7 +235,6 @@ export default function MyFollowupsPage() {
               person={focusPerson}
               seedCategory={ordered[0]?.category ?? null}
               volunteerName={member.full_name}
-              memberId={member.id}
               isAdmin={admin}
             />
           </div>

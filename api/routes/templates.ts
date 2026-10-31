@@ -9,56 +9,51 @@ import type { Prisma } from "../../src/generated/prisma/client.js";
 import { audit } from "../audit.js";
 import { currentMember } from "../lib/route-helpers.js";
 import { asCategory, humanize } from "../lib/enums.js";
-import { categorySchema } from "../schemas/people.js";
-
-const templateCreateSchema = z.object({
-  name: z.string().min(1).max(120).transform((v) => v.trim()),
-  body: z.string().min(1).max(3000).transform((v) => v.trim()),
-  suggestedCategory: categorySchema.nullish(),
-  sortOrder: z.number().int().min(0).max(9999).default(0),
-  active: z.boolean().default(true),
-});
-
-const templateUpdateSchema = z.object({
-  name: z.string().min(1).max(120).transform((v) => v.trim()).optional(),
-  body: z.string().min(1).max(3000).transform((v) => v.trim()).optional(),
-  suggestedCategory: categorySchema.nullish().optional(),
-  sortOrder: z.number().int().min(0).max(9999).optional(),
-  active: z.boolean().optional(),
-});
-
-const templateReorderSchema = z.object({
-  items: z
-    .array(z.object({ id: z.uuid(), sortOrder: z.number().int().min(0).max(9999) }))
-    .min(1)
-    .max(100),
-});
+import {
+  templateApiSchema,
+  templateCreateSchema,
+  templateListApiSchema,
+  templateListQuerySchema,
+  templateReorderResultSchema,
+  templateReorderSchema,
+  templateUpdateSchema,
+} from "../schemas/templates.js";
 
 function serializeTemplate(row: {
   id: string;
   name: string;
   body: string;
+  purpose: string;
   suggestedCategory: string | null;
   sortOrder: number;
   active: boolean;
 }) {
-  return {
+  return templateApiSchema.parse({
     id: row.id,
     name: row.name,
     body: row.body,
+    purpose: row.purpose,
     suggestedCategory: humanize("Category", row.suggestedCategory),
     sortOrder: row.sortOrder,
     active: row.active,
-  };
+  });
 }
 
 export async function registerTemplateRoutes(app: FastifyInstance): Promise<void> {
   // ---- List (MessagePanel picker + TemplatesDialog) --------------------------
-  app.get("/api/templates", { config: { access: "auth", action: "templates:read" } }, async (req) => {
+  app.get("/api/templates", { config: { access: "auth", action: "templates:read" } }, async (req, reply) => {
+    const parsed = templateListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid template query" });
+    }
+    const where: Prisma.MessageTemplatesWhereInput = {};
+    if (parsed.data.purpose) where.purpose = parsed.data.purpose;
+    if (parsed.data.active !== undefined) where.active = parsed.data.active;
     const rows = await req.prisma.messageTemplates.findMany({
+      where,
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     });
-    return { items: rows.map(serializeTemplate) };
+    return templateListApiSchema.parse({ items: rows.map(serializeTemplate) });
   });
 
   // ---- Create ----------------------------------------------------------------
@@ -80,6 +75,7 @@ export async function registerTemplateRoutes(app: FastifyInstance): Promise<void
         suggestedCategory: input.suggestedCategory ? asCategory(input.suggestedCategory) : null,
         sortOrder: input.sortOrder,
         active: input.active,
+        purpose: input.purpose,
         createdBy: member?.id ?? null,
       },
     });
@@ -123,6 +119,7 @@ export async function registerTemplateRoutes(app: FastifyInstance): Promise<void
       if (input.suggestedCategory !== undefined) {
         data.suggestedCategory = input.suggestedCategory ? asCategory(input.suggestedCategory) : null;
       }
+      if (input.purpose !== undefined) data.purpose = input.purpose;
       if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
       if (input.active !== undefined) data.active = input.active;
       const updated = await req.prisma.messageTemplates.update({ where: { id: row.id }, data });
@@ -161,7 +158,7 @@ export async function registerTemplateRoutes(app: FastifyInstance): Promise<void
         entityId: null,
         message: "templates reordered",
       });
-      return { updated: parsed.data.items.length };
+      return templateReorderResultSchema.parse({ updated: parsed.data.items.length });
     },
   );
 

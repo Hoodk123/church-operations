@@ -214,7 +214,7 @@ export default function BaptismPage() {
   }
 
   async function prepareReminder(person: RegPerson | Candidate) {
-    const template = await fetchTemplate(supabase, 'baptism_reminder');
+    const template = await fetchTemplate('baptism_reminder');
     const body = template ? fillTemplate(template.body, valuesFor(template.body, asNamed(person))) : '';
     if (!template) {
       toast.info('No baptism reminder template is set up.');
@@ -976,13 +976,13 @@ function SendRemindersDialog({
   useEffect(() => {
     if (!event) return;
     let cancelled = false;
-    void fetchTemplate(supabase, 'baptism_reminder').then((t) => {
+    void fetchTemplate('baptism_reminder').then((t) => {
       if (!cancelled && t) setTemplate({ name: t.name, body: t.body });
     });
     return () => {
       cancelled = true;
     };
-  }, [event, supabase]);
+  }, [event]);
 
   async function send(reg: Registration) {
     const person = reg.people;

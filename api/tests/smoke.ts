@@ -567,6 +567,15 @@ async function main(): Promise<void> {
       assert.strictEqual(templateList.statusCode, 200);
       assert.ok(templateList.json().items.length >= 1, "seed templates present");
 
+      const m1ReminderTemplates = await second.inject({
+        method: "GET",
+        url: "/api/templates?purpose=m1_reminder",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(m1ReminderTemplates.statusCode, 200);
+      assert.ok(m1ReminderTemplates.json().items.length >= 1);
+      assert.ok(m1ReminderTemplates.json().items.every((item: { purpose: string }) => item.purpose === "m1_reminder"));
+
       const templateCreate = await second.inject({
         method: "POST",
         url: "/api/templates",
@@ -585,6 +594,15 @@ async function main(): Promise<void> {
       });
       assert.strictEqual(templateEdit.statusCode, 200);
       assert.strictEqual(templateEdit.json().active, false);
+      assert.strictEqual(templateEdit.json().purpose, "follow_up");
+
+      const inactiveTemplates = await second.inject({
+        method: "GET",
+        url: "/api/templates?active=false",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(inactiveTemplates.statusCode, 200);
+      assert.ok(inactiveTemplates.json().items.some((item: { id: string }) => item.id === templateId));
 
       const deskTemplateWrite = await second.inject({
         method: "POST",

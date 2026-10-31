@@ -112,7 +112,7 @@ export default function PersonSheet({
 
     Promise.all([
       fetchClassSessions(supabase, klass.id),
-      Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(supabase, t.purpose))),
+      Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(t.purpose))),
       supabase
         .from('m1_enrollments')
         .select('status, certificate_no')

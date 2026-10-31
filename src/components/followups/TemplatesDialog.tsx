@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
+import {
+  createTemplate,
+  deleteTemplate,
+  listTemplates,
+  reorderTemplates,
+  updateTemplate,
+  type TemplateApi,
+} from '@/lib/api/templates';
+import { categorySchema } from '../../../packages/shared/schemas/people';
 import { categories } from '@/components/people/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,47 +33,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-export interface Template {
-  id: string;
-  name: string;
-  body: string;
-  suggested_category: string | null;
-  sort_order: number;
-  active: boolean;
-}
+export type Template = TemplateApi;
 
 const NONE = 'none';
 
 interface TemplatesDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  memberId: string;
   onChanged: () => void;
 }
 
 export default function TemplatesDialog({
   open,
   onOpenChange,
-  memberId,
   onChanged,
 }: TemplatesDialogProps) {
-  const supabase = createClient();
   const [rows, setRows] = useState<Template[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('message_templates')
-      .select('id, name, body, suggested_category, sort_order, active')
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true });
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      setRows(await listTemplates());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load templates.');
       setRows([]);
-      return;
     }
-    setRows((data ?? []) as Template[]);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -88,63 +80,57 @@ export default function TemplatesDialog({
       return;
     }
     setBusyId(row.id);
-    const payload = {
-      name: row.name.trim(),
-      body: row.body.trim(),
-      suggested_category: row.suggested_category,
-      sort_order: row.sort_order,
-      active: row.active,
-      updated_at: new Date().toISOString(),
-    };
-    const { error } = await supabase
-      .from('message_templates')
-      .update(payload)
-      .eq('id', row.id);
-    setBusyId(null);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await updateTemplate(row.id, {
+        name: row.name.trim(),
+        body: row.body.trim(),
+        suggestedCategory: row.suggestedCategory,
+        sortOrder: row.sortOrder,
+        active: row.active,
+      });
+      toast.success('Template saved');
+      onChanged();
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save template.');
+    } finally {
+      setBusyId(null);
     }
-    toast.success('Template saved');
-    onChanged();
-    void load();
   }
 
   async function addRow() {
-    const maxOrder = rows?.reduce((m, r) => Math.max(m, r.sort_order), 0) ?? 0;
+    const maxOrder = rows?.reduce((m, r) => Math.max(m, r.sortOrder), 0) ?? 0;
     setBusyId('new');
-    const { error } = await supabase.from('message_templates').insert({
-      name: `New template ${(rows?.length ?? 0) + 1}`,
-      body: 'Hello {name}, ',
-      suggested_category: null,
-      sort_order: maxOrder + 1,
-      active: true,
-      created_by: memberId,
-    });
-    setBusyId(null);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await createTemplate({
+        name: `New template ${(rows?.length ?? 0) + 1}`,
+        body: 'Hello {name}, ',
+        suggestedCategory: null,
+        sortOrder: maxOrder + 1,
+        active: true,
+      });
+      onChanged();
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not add template.');
+    } finally {
+      setBusyId(null);
     }
-    onChanged();
-    void load();
   }
 
   async function remove(row: Template) {
     if (!window.confirm(`Delete template “${row.name}”?`)) return;
     setBusyId(row.id);
-    const { error } = await supabase
-      .from('message_templates')
-      .delete()
-      .eq('id', row.id);
-    setBusyId(null);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await deleteTemplate(row.id);
+      toast.success('Template deleted');
+      onChanged();
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete template.');
+    } finally {
+      setBusyId(null);
     }
-    toast.success('Template deleted');
-    onChanged();
-    void load();
   }
 
   async function move(index: number, dir: -1 | 1) {
@@ -153,27 +139,25 @@ export default function TemplatesDialog({
     if (target < 0 || target >= rows.length) return;
     const a = rows[index];
     const b = rows[target];
-    const orderA = a.sort_order;
+    const orderA = a.sortOrder;
     // Swap on screen immediately.
     setRows((prev) => {
       if (!prev) return prev;
       const next = [...prev];
-      next[index] = { ...a, sort_order: b.sort_order };
-      next[target] = { ...b, sort_order: orderA };
-      return next.sort((x, y) => x.sort_order - y.sort_order);
+      next[index] = { ...a, sortOrder: b.sortOrder };
+      next[target] = { ...b, sortOrder: orderA };
+      return next.sort((x, y) => x.sortOrder - y.sortOrder);
     });
-    const { error } = await supabase
-      .from('message_templates')
-      .upsert([
-        { id: a.id, sort_order: b.sort_order },
-        { id: b.id, sort_order: orderA },
+    try {
+      await reorderTemplates([
+        { id: a.id, sortOrder: b.sortOrder },
+        { id: b.id, sortOrder: orderA },
       ]);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not reorder templates.');
       void load();
-      return;
     }
-    onChanged();
   }
 
   return (
@@ -238,10 +222,10 @@ export default function TemplatesDialog({
                   <div className="space-y-1">
                     <Label className="text-xs">Suggested category</Label>
                     <Select
-                      value={row.suggested_category ?? NONE}
+                      value={row.suggestedCategory ?? NONE}
                       onValueChange={(v) =>
                         patch(row.id, {
-                          suggested_category: v === NONE ? null : v,
+                          suggestedCategory: v === NONE ? null : categorySchema.parse(v),
                         })
                       }
                     >

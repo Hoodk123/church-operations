@@ -354,8 +354,8 @@ function ShareFilesCard({ klass, rows, sessions, onSigned }: ShareFilesCardProps
   const [template, setTemplate] = useState('');
 
   useEffect(() => {
-    fetchTemplate(supabase, 'm1_materials').then((t) => setTemplate(t?.body ?? ''));
-  }, [supabase]);
+    fetchTemplate('m1_materials').then((t) => setTemplate(t?.body ?? ''));
+  }, []);
 
   const closedSessions = useMemo(() => sessions.filter((s) => s.closed), [sessions]);
 

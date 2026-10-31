@@ -8,6 +8,7 @@ import { daysSince, relativeDays } from '@/lib/dates';
 import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
 import { type SelectOption } from '@/lib/select-items';
+import { bulkAssign } from '@/lib/api/people';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -158,15 +159,14 @@ export default function VolunteerSheet({
   async function reassign(targetTeamId: string) {
     if (selected.size === 0 || !targetTeamId) return;
     setBusy(true);
-    const { error } = await supabase
-      .from('people')
-      .update({ assigned_to: targetTeamId })
-      .in('id', [...selected]);
-    setBusy(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      await bulkAssign([...selected], targetTeamId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not reassign people.');
+      setBusy(false);
       return;
     }
+    setBusy(false);
     toast.success(
       `Reassigned ${selected.size} ${selected.size === 1 ? 'person' : 'people'}`
     );

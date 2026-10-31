@@ -99,7 +99,7 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
       return;
     }
     setReminding(person.id);
-    const template = await fetchTemplate(supabase, 'm1_reminder');
+    const template = await fetchTemplate('m1_reminder');
     const body = fillTemplate(template?.body ?? '', {
       name: person.first_name,
       class: klass.title,
