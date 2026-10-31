@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ChevronDown, Undo2 } from 'lucide-react';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { todayISO } from '@/lib/dates';
 import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
+import { ApiError } from '@/lib/api/client';
+import { myFollowUps, undoContactLog } from '@/lib/api/followups';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import LogContactSheet from './LogContactSheet';
@@ -15,7 +14,7 @@ import {
   FollowUpCard,
   FollowUpRow,
 } from './FollowUpCard';
-import { fullName, fetchMissedM1, type FollowUpPerson } from './utils';
+import { fullName, type FollowUpPerson } from './utils';
 import VolunteersTab from './VolunteersTab';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -51,26 +50,39 @@ interface DoneEntry {
   person: DonePerson;
 }
 
-const PERSON_FIELDS =
-  'id, first_name, last_name, phone, category, location, needs_pastor, last_contact_date, follow_up_status, assigned_at, assigner:team_members!people_assigned_by_fkey(full_name)';
+type ApiFollowUpPerson = Awaited<ReturnType<typeof myFollowUps>>['people'][number];
+type ApiFollowUpLog = Awaited<ReturnType<typeof myFollowUps>>['todayLogs'][number];
 
-function fetchMyPeople(supabase: SupabaseClient, memberId: string) {
-  return supabase
-    .from('people')
-    .select(PERSON_FIELDS)
-    .eq('assigned_to', memberId)
-    .neq('follow_up_status', 'Completed');
+function mapFollowUpPerson(person: ApiFollowUpPerson): FollowUpPerson {
+  return {
+    id: person.id,
+    first_name: person.firstName,
+    last_name: person.lastName,
+    phone: person.phone,
+    category: person.category,
+    location: person.location,
+    needs_pastor: person.needsPastor,
+    last_contact_date: person.lastContactDate,
+    follow_up_status: person.followUpStatus,
+    assigned_at: person.assignedAt,
+    assigner: person.assignedByName ? { full_name: person.assignedByName } : null,
+    missed_m1_day: person.missedM1Day,
+  };
 }
 
-function fetchTodayLogs(supabase: SupabaseClient, memberId: string) {
-  return supabase
-    .from('contact_log')
-    .select(
-      'id, contacted_at, finished, person:people!contact_log_person_id_fkey(id, first_name, last_name, category, phone)'
-    )
-    .eq('contacted_by', memberId)
-    .gte('contacted_at', todayISO())
-    .order('contacted_at', { ascending: false });
+function mapDoneLog(log: ApiFollowUpLog): DoneLog {
+  return {
+    id: log.id,
+    contacted_at: log.contactedAt,
+    finished: log.finished,
+    person: {
+      id: log.person.id,
+      first_name: log.person.firstName,
+      last_name: log.person.lastName,
+      category: log.person.category,
+      phone: log.person.phone,
+    },
+  };
 }
 
 function rowPerson(log: DoneLog): DonePerson | null {
@@ -83,7 +95,6 @@ function isNeedsNow(p: FollowUpPerson): boolean {
 
 export default function MyFollowupsPage() {
   const member = useShellMember();
-  const supabase = createClient();
 
   const [people, setPeople] = useState<FollowUpPerson[]>([]);
   const [doneToday, setDoneToday] = useState<DoneEntry[]>([]);
@@ -122,21 +133,16 @@ export default function MyFollowupsPage() {
 
   const load = useCallback(async () => {
     if (!memberId) return;
-    const [peopleRes, logsRes] = await Promise.all([
-      fetchMyPeople(supabase, memberId),
-      fetchTodayLogs(supabase, memberId),
-    ]);
-    if (peopleRes.error) toast.error(rlsErrorMessage(peopleRes.error));
-    if (logsRes.error) toast.error(rlsErrorMessage(logsRes.error));
-    const rows = (peopleRes.data ?? []) as unknown as FollowUpPerson[];
-    const missed = await fetchMissedM1(supabase, rows.map((p) => p.id));
-    for (const p of rows) p.missed_m1_day = missed[p.id] ?? null;
-    applyData(
-      rows,
-      (logsRes.data ?? []) as unknown as DoneLog[]
-    );
-    setLoading(false);
-  }, [supabase, memberId, applyData]);
+    try {
+      const dashboard = await myFollowUps(todayISO());
+      applyData(dashboard.people.map(mapFollowUpPerson), dashboard.todayLogs.map(mapDoneLog));
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not load follow-ups.');
+      applyData([], []);
+    } finally {
+      setLoading(false);
+    }
+  }, [memberId, applyData]);
 
   useEffect(() => {
     async function run() {
@@ -180,18 +186,16 @@ export default function MyFollowupsPage() {
   const admin = member?.role === 'Admin';
 
   async function undoLastLog(entry: DoneEntry) {
-    const { error } = await supabase
-      .from('contact_log')
-      .delete()
-      .eq('id', entry.logId);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      await undoContactLog(entry.logId);
+      toast.success(
+        `Undid last log for ${entry.person.first_name} ${entry.person.last_name}`
+      );
+      await load();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not undo contact log.');
       return;
     }
-    toast.success(
-      `Undid last log for ${entry.person.first_name} ${entry.person.last_name}`
-    );
-    await load();
   }
 
   if (!member) return null;
@@ -391,7 +395,6 @@ export default function MyFollowupsPage() {
           }}
           personId={logFor.id}
           personName={fullName(logFor)}
-          memberId={member.id}
           onSaved={load}
         />
       )}

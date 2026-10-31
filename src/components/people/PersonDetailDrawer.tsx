@@ -22,7 +22,6 @@ import {
   deletePerson,
   listTeamMembers,
 } from '@/lib/api/people';
-import { useShellMember } from '@/components/layout/shell';
 import { type SelectOption } from '@/lib/select-items';
 import LogContactSheet from '@/components/followups/LogContactSheet';
 import { MarkNewConvertButton } from './MarkNewConvertButton';
@@ -135,9 +134,6 @@ export default function PersonDetailDrawer({
   const [editNeedsM1, setEditNeedsM1] = useState(false);
   const [editNeedsBaptism, setEditNeedsBaptism] = useState(false);
   const [enrolledClass, setEnrolledClass] = useState<{ title: string; status: string } | null>(null);
-  const member = useShellMember();
-  const memberId = member?.id ?? '';
-
   const teamItems = useMemo<SelectOption[]>(
     () => [
       { value: '', label: 'Unassigned' },
@@ -737,7 +733,6 @@ export default function PersonDetailDrawer({
         onOpenChange={setLogOpen}
         personId={personId}
         personName={`${p.first_name} ${p.last_name}`}
-        memberId={memberId}
         onSaved={() => {
           void getPersonDetail(personId)
             .then((detail) => setContactLog(detail.contactLogs.map(contactLogApiToRow)))

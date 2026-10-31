@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
+import { ApiError } from '@/lib/api/client';
+import { logContact } from '@/lib/api/people';
 import { useIsMobile } from '@/lib/use-is-mobile';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -37,7 +37,6 @@ interface LogContactSheetProps {
   onOpenChange: (open: boolean) => void;
   personId: string;
   personName: string;
-  memberId: string;
   /** Called after a successful insert so the parent can refetch. */
   onSaved?: () => void;
 }
@@ -47,11 +46,9 @@ export default function LogContactSheet({
   onOpenChange,
   personId,
   personName,
-  memberId,
   onSaved,
 }: LogContactSheetProps) {
   const isMobile = useIsMobile();
-  const supabase = createClient();
   const [method, setMethod] = useState<string>('Call');
   const [outcome, setOutcome] = useState<string>('Reached');
   const [note, setNote] = useState('');
@@ -77,27 +74,23 @@ export default function LogContactSheet({
     setError('');
     setSubmitting(true);
 
-    const { error: insertErr } = await supabase.from('contact_log').insert({
-      person_id: personId,
-      contacted_by: memberId,
-      method,
-      outcome,
-      note: note.trim() || null,
-      finished,
-    });
-
-    setSubmitting(false);
-
-    if (insertErr) {
-      const msg = rlsErrorMessage(insertErr);
+    try {
+      await logContact(personId, {
+        method,
+        outcome,
+        note: note.trim() || null,
+        finished,
+      });
+      toast.success(`Contact logged for ${personName}`);
+      onSaved?.();
+      handleOpenChange(false);
+    } catch (error) {
+      const msg = error instanceof ApiError ? error.message : 'Could not save contact log.';
       setError(msg);
       toast.error(msg);
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    toast.success(`Contact logged for ${personName}`);
-    onSaved?.();
-    handleOpenChange(false);
   }
 
   const body = (

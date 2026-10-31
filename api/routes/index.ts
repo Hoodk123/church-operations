@@ -18,6 +18,7 @@ import { registerAttentionRoutes } from "./attention.js";
 import { registerWelcomeRoutes } from "./public-welcome.js";
 import { registerPeopleExportRoutes } from "./people-export.js";
 import { registerImportRoutes } from "./imports.js";
+import { registerFollowUpRoutes } from "./followups.js";
 
 export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerHealthRoutes(app);
@@ -36,4 +37,5 @@ export async function addStandardRoutes(app: FastifyInstance): Promise<void> {
   await registerWelcomeRoutes(app);
   await registerPeopleExportRoutes(app);
   await registerImportRoutes(app);
+  await registerFollowUpRoutes(app);
 }

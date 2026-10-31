@@ -54,6 +54,9 @@ const EXPECTED_ROUTES: ReadonlyArray<{ method: string; url: string; action: stri
   { method: "PATCH", url: "/api/people/bulk-assign", action: "people:assign" },
   { method: "POST", url: "/api/people/:id/mark-new-convert", action: "people:edit" },
   { method: "POST", url: "/api/people/:id/contact-log", action: "followup:log" },
+  { method: "GET", url: "/api/follow-ups", action: "followup:read" },
+  { method: "HEAD", url: "/api/follow-ups", action: "followup:read" },
+  { method: "DELETE", url: "/api/contact-log/:id", action: "followup:log" },
   { method: "DELETE", url: "/api/people/:id", action: "erase-person" },
   { method: "GET", url: "/api/checkin/search", action: "checkin:read" },
   { method: "HEAD", url: "/api/checkin/search", action: "checkin:read" },
@@ -175,4 +178,3 @@ describe("route registry", () => {
     }
   });
 });
-

@@ -165,3 +165,43 @@ export const personDetailApiSchema = z.object({
     .nullable(),
 });
 export type PersonDetailApi = z.output<typeof personDetailApiSchema>;
+
+export const followUpsQuerySchema = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+export const followUpDashboardApiSchema = z.object({
+    people: z.array(
+      z.object({
+        id: z.string(),
+        firstName: z.string(),
+        lastName: z.string(),
+        phone: z.string().nullable(),
+        category: z.string().nullable(),
+        location: z.string().nullable(),
+        needsPastor: z.boolean(),
+        lastContactDate: z.string().nullable(),
+        followUpStatus: z.string(),
+        assignedAt: z.string().nullable(),
+        assignedByName: z.string().nullable(),
+        missedM1Day: z.number().int().nullable(),
+      })
+    ),
+    todayLogs: z.array(
+      z.object({
+        id: z.string(),
+        contactedAt: z.string(),
+        finished: z.boolean(),
+        person: z.object({
+          id: z.string(),
+          firstName: z.string(),
+          lastName: z.string(),
+          category: z.string().nullable(),
+          phone: z.string().nullable(),
+        }),
+      })
+    ),
+});
+export type FollowUpDashboardApi = z.output<typeof followUpDashboardApiSchema>;
+export type FollowUpPersonApi = FollowUpDashboardApi["people"][number];
+export type FollowUpLogApi = FollowUpDashboardApi["todayLogs"][number];

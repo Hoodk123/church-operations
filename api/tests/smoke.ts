@@ -255,6 +255,21 @@ async function main(): Promise<void> {
         payload: { method: "Call", outcome: "Reached", note: "smoke log", finished: false },
       });
       assert.strictEqual(logged.statusCode, 200);
+      const currentDate = new Date();
+      const localDate = [
+        currentDate.getFullYear(),
+        String(currentDate.getMonth() + 1).padStart(2, "0"),
+        String(currentDate.getDate()).padStart(2, "0"),
+      ].join("-");
+      const followUps = await second.inject({
+        method: "GET",
+        url: `/api/follow-ups?date=${localDate}`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(followUps.statusCode, 200);
+      assert.ok(
+        followUps.json().todayLogs.some((log: { id: string }) => log.id === logged.json().created.id),
+      );
       const detail = await second.inject({
         method: "GET",
         url: `/api/people/${person.id}`,
@@ -268,7 +283,12 @@ async function main(): Promise<void> {
       assert.strictEqual(afterLog.contactLogs[0].outcome, "Reached");
 
       // deleting the log entry must recompute the person (trigger `revert`)
-      await prisma.contactLog.deleteMany({ where: { personId: person.id } });
+      const undone = await second.inject({
+        method: "DELETE",
+        url: `/api/contact-log/${logged.json().created.id}`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+      });
+      assert.strictEqual(undone.statusCode, 204);
       const afterRevert = await second.inject({
         method: "GET",
         url: `/api/people/${person.id}`,

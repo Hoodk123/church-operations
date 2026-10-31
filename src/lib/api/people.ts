@@ -4,6 +4,7 @@ import { api } from "./client";
 import {
   bulkAssignSchema,
   contactLogCreateSchema,
+  contactLogApiSchema,
   teamMemberApiSchema,
   personCreateSchema,
   personDetailApiSchema,
@@ -20,8 +21,8 @@ import {
 import { z } from "zod";
 
 const contactLogCreatedSchema = z.object({
-  created: z.custom<ContactLogApi>(() => true),
-  contactLogs: z.array(z.custom<ContactLogApi>(() => true)),
+  created: contactLogApiSchema,
+  contactLogs: z.array(contactLogApiSchema),
 });
 
 const recentPeopleSchema = z.object({
