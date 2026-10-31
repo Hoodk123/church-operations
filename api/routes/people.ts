@@ -11,7 +11,7 @@ import type { FastifyInstance } from "fastify";
 import type { Prisma } from "../../src/generated/prisma/client.js";
 import type { ApiPrisma } from "../db.js";
 import { audit } from "../audit.js";
-import { currentMember, isoDate, day, pageQuerySchema } from "../lib/route-helpers.js";
+import { currentMember, isoDate, day } from "../lib/route-helpers.js";
 import { normalizeRwandaPhone } from "../lib/phone.js";
 import { asAgeGroup, asBaptismStatus, asCategory, asContactMethod, asContactOutcome, asContactPreference, asFollowUpStatus, asGender, asM1Status, humanize } from "../lib/enums.js";
 import {
@@ -19,6 +19,8 @@ import {
   contactLogCreateSchema,
   personAssignSchema,
   personCreateSchema,
+  personListApiSchema,
+  personListQuerySchema,
   personUpdateSchema,
   type PersonApi,
   type ContactLogApi,
@@ -30,6 +32,7 @@ type ContactLogWithNames = Prisma.ContactLogGetPayload<{ include: typeof CONTACT
 
 export const PERSON_INCLUDE = {
   assignee: { select: { fullName: true } },
+  assignedByRef: { select: { fullName: true } },
   registeredByRef: { select: { fullName: true } },
 } as const;
 
@@ -55,6 +58,7 @@ export function serializePerson(row: PersonWithNames, includeNotes: boolean): Pe
     assignedTo: row.assignedTo,
     assignedToName: row.assignee?.fullName ?? null,
     assignedBy: row.assignedBy,
+    assignedByName: row.assignedByRef?.fullName ?? null,
     assignedAt: row.assignedAt ? isoDate(row.assignedAt) : null,
     followUpStatus: humanize("FollowUpStatus", row.followUpStatus) ?? "",
 
@@ -118,24 +122,31 @@ export async function registerPeopleRoutes(app: FastifyInstance): Promise<void> 
     "/api/people",
     { config: { access: "auth", action: "people:read" } },
     async (req, reply) => {
-      const query = pageQuerySchema.safeParse(Object.fromEntries(new URL(req.url, "http://localhost").searchParams));
+      const query = personListQuerySchema.safeParse(
+        Object.fromEntries(new URL(req.url, "http://localhost").searchParams),
+      );
       if (!query.success) {
-        return reply.code(400).send({ error: "invalid pagination query" });
+        return reply.code(400).send({ error: "invalid people query" });
       }
-      const { limit, offset } = query.data;
+      const { limit, offset, assignedTo, excludeCompleted } = query.data;
+      const where: Prisma.PeopleWhereInput = {};
+      if (assignedTo === "unassigned") where.assignedTo = null;
+      else if (assignedTo) where.assignedTo = assignedTo;
+      if (excludeCompleted) where.followUpStatus = { not: "Completed" };
       const [rows, total] = await Promise.all([
         req.prisma.people.findMany({
+          where,
           orderBy: [{ updatedAt: "desc" }],
           take: limit,
           skip: offset,
           include: PERSON_INCLUDE,
         }),
-        req.prisma.people.count(),
+        req.prisma.people.count({ where }),
       ]);
       // Info Desk never sees notes anywhere.
       const includeNotes = (req.user!.role as string) !== "Info Desk";
       const items = rows.map((row) => serializePerson(row, includeNotes));
-      return { items, total };
+      return personListApiSchema.parse({ items, total });
     },
   );
 

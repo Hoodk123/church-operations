@@ -552,6 +552,23 @@ async function main(): Promise<void> {
       assert.strictEqual(assignedRow?.assignedTo, coordId);
       assert.ok(assignedRow?.assignedBy, "assignedBy stamped");
       assert.ok(assignedRow?.assignedAt, "assignedAt stamped by trigger");
+      const assignedPeople = await second.inject({
+        method: "GET",
+        url: `/api/people?assignedTo=${coordId}&excludeCompleted=true`,
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(assignedPeople.statusCode, 200);
+      assert.ok(assignedPeople.json().items.some((item: { id: string }) => item.id === unassignedId));
+      const listedAssignment = assignedPeople.json().items.find((item: { id: string }) => item.id === unassignedId);
+      assert.strictEqual(typeof listedAssignment?.assignedByName, "string");
+      const unassignedPeople = await second.inject({
+        method: "GET",
+        url: "/api/people?assignedTo=unassigned&excludeCompleted=true",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(unassignedPeople.statusCode, 200);
+      assert.ok(unassignedPeople.json().items.every((item: { assignedTo: string | null; followUpStatus: string }) =>
+        item.assignedTo === null && item.followUpStatus !== "Completed"));
       await second.inject({
         method: "DELETE",
         url: `/api/people/${unassignedId}`,

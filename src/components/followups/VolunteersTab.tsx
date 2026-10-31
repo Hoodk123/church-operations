@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { relativeDays } from '@/lib/dates';
+import { volunteerOverview } from '@/lib/api/metrics';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -31,24 +29,27 @@ function lastActiveLabel(ts: string | null): string {
   return relativeDays(ts);
 }
 
-function fetchOverview(supabase: SupabaseClient) {
-  return supabase.rpc('get_volunteer_overview');
-}
-
 export default function VolunteersTab() {
-  const supabase = createClient();
   const [rows, setRows] = useState<OverviewRow[] | null>(null);
   const [sheetTeam, setSheetTeam] = useState<OverviewRow | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await fetchOverview(supabase);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      const overview = await volunteerOverview();
+      setRows(overview.items.map((row) => ({
+        team_member_id: row.id,
+        full_name: row.fullName,
+        role: row.role,
+        assigned: row.assigned,
+        contacted_this_week: row.contactedThisWeek,
+        overdue: row.overdue,
+        last_active: row.lastActive,
+      })));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load volunteers.');
       setRows([]);
-      return;
     }
-    setRows((data ?? []) as OverviewRow[]);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     async function run() {

@@ -1,5 +1,4 @@
-// People calls (docs/09 Phase 4). Typed from the API's zod schemas —
-// the single source of truth lives in api/schemas/people.ts. [local-first]
+// People calls (docs/09 Phase 4). Typed from the shared Zod schemas.
 import { api } from "./client";
 import {
   bulkAssignSchema,
@@ -11,12 +10,14 @@ import {
   personListApiSchema,
   personApiSchema,
   personAssignSchema,
+  personListQuerySchema,
   type PersonApi,
   type PersonDetailApi,
   type PersonListApi,
   type ContactLogApi,
   type TeamMemberApi,
   type PersonCreateInput,
+  type PersonListFilters,
 } from "../../../packages/shared/schemas/people";
 import { z } from "zod";
 
@@ -43,8 +44,13 @@ export type RecentPerson = z.output<typeof recentPeopleSchema>["items"][number];
 
 export type { PersonApi, PersonDetailApi, PersonListApi, ContactLogApi, TeamMemberApi, PersonCreateInput };
 
-export async function listPeople(limit = 100, offset = 0): Promise<PersonListApi> {
-  return personListApiSchema.parse(await api<unknown>("/api/people", { query: { limit, offset } }));
+export async function listPeople(
+  limit = 100,
+  offset = 0,
+  filters: PersonListFilters = {},
+): Promise<PersonListApi> {
+  const query = personListQuerySchema.parse({ limit, offset, ...filters });
+  return personListApiSchema.parse(await api<unknown>("/api/people", { query }));
 }
 
 export async function getPersonDetail(id: string): Promise<PersonDetailApi> {
@@ -52,16 +58,15 @@ export async function getPersonDetail(id: string): Promise<PersonDetailApi> {
 }
 
 /**
- * Full roster for the people table. The API caps one page at 100 rows
- * (limit/offset only), so page through until `total` is reached and keep the
- * client-side filtering behavior the screens were built on. [local-first]
+ * Page through until `total` is reached. The people table keeps its
+ * client-side filters; assignment filters narrow requests for volunteer views.
  */
-export async function listAllPeople(): Promise<PersonApi[]> {
+export async function listAllPeople(filters: PersonListFilters = {}): Promise<PersonApi[]> {
   const pageSize = 100;
-  const first = await listPeople(pageSize, 0);
+  const first = await listPeople(pageSize, 0, filters);
   const items = [...first.items];
   while (items.length < first.total) {
-    const page = await listPeople(pageSize, items.length);
+    const page = await listPeople(pageSize, items.length, filters);
     if (page.items.length === 0) break; // defensive: never loop forever
     items.push(...page.items);
   }

@@ -128,6 +128,7 @@ export const personApiSchema = z.object({
   assignedTo: z.string().nullable(),
   assignedToName: z.string().nullable(),
   assignedBy: z.string().nullable(),
+  assignedByName: z.string().nullable(),
   followUpStatus: z.string(),
   needsPastor: z.boolean(),
   lastContactDate: z.string().nullable(),
@@ -146,6 +147,22 @@ export const personApiSchema = z.object({
   registeredByName: z.string().nullable(),
 });
 export type PersonApi = z.output<typeof personApiSchema>;
+
+export const personListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+  assignedTo: z.union([z.uuid(), z.literal("unassigned")]).optional(),
+  excludeCompleted: z
+    .union([
+      z.boolean(),
+      z.enum(["true", "false"]).transform((value) => value === "true"),
+    ])
+    .optional(),
+});
+export type PersonListFilters = Pick<
+  z.input<typeof personListQuerySchema>,
+  "assignedTo" | "excludeCompleted"
+>;
 
 export const personListApiSchema = z.object({
   items: z.array(personApiSchema),

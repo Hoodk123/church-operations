@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { UserPlus } from 'lucide-react';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince, relativeDays } from '@/lib/dates';
 import { initials } from '@/lib/names';
 import { cn } from '@/lib/utils';
 import { type SelectOption } from '@/lib/select-items';
-import { bulkAssign } from '@/lib/api/people';
+import { bulkAssign, listAllPeople, listTeamMembers } from '@/lib/api/people';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,6 +38,7 @@ import {
   contactDotColor,
   followUpStatusColors,
 } from '@/components/people/constants';
+import { personApiToRow } from '@/components/people/adapt';
 import type { Person } from '@/components/people/columns';
 import PersonDetailDrawer from '@/components/people/PersonDetailDrawer';
 import type { OverviewRow } from './VolunteersTab';
@@ -50,32 +48,12 @@ interface VolSheetRow extends Person {
   assigned_at: string | null;
 }
 
-interface RawRow {
-  assigned_to_name: { full_name: string } | null;
-  registered_by_name: { full_name: string } | null;
-  assigned_by_name: { full_name: string } | null;
-  [key: string]: unknown;
-}
-
-function mapRow(raw: RawRow): VolSheetRow {
+function toVolSheetRow(raw: Awaited<ReturnType<typeof listAllPeople>>[number]): VolSheetRow {
   return {
-    ...(raw as unknown as Person),
-    assigned_to_name: raw.assigned_to_name?.full_name ?? null,
-    registered_by_name: raw.registered_by_name?.full_name ?? null,
-    assigned_by_name: raw.assigned_by_name?.full_name ?? null,
-    assigned_at: (raw.assigned_at as string | null) ?? null,
+    ...personApiToRow(raw),
+    assigned_by_name: raw.assignedByName,
+    assigned_at: raw.assignedAt,
   };
-}
-
-function fetchAssigned(supabase: SupabaseClient, teamId: string) {
-  return supabase
-    .from('people')
-    .select(
-      '*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name), assigned_by_name:team_members!people_assigned_by_fkey(full_name)'
-    )
-    .eq('assigned_to', teamId)
-    .neq('follow_up_status', 'Completed')
-    .order('first_name', { ascending: true });
 }
 
 function shortDate(iso: string): string {
@@ -97,7 +75,6 @@ export default function VolunteerSheet({
   onOpenChange,
   onChanged,
 }: VolunteerSheetProps) {
-  const supabase = createClient();
   const [people, setPeople] = useState<VolSheetRow[] | null>(null);
   const [teamOptions, setTeamOptions] = useState<{ id: string; full_name: string }[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -109,22 +86,27 @@ export default function VolunteerSheet({
 
   const load = useCallback(async () => {
     if (!teamId) return;
-    const [peopleRes, teamRes] = await Promise.all([
-      fetchAssigned(supabase, teamId),
-      supabase
-        .from('team_members')
-        .select('id, full_name')
-        .in('role', ['Admin', 'Follow-up Coordinator', 'Pastor'])
-        .order('full_name', { ascending: true }),
-    ]);
-    if (peopleRes.error) {
-      toast.error(rlsErrorMessage(peopleRes.error));
+    try {
+      const [assignedPeople, members] = await Promise.all([
+        listAllPeople({ assignedTo: teamId, excludeCompleted: true }),
+        listTeamMembers(),
+      ]);
+      setPeople(
+        assignedPeople
+          .map(toVolSheetRow)
+          .sort((a, b) => a.first_name.localeCompare(b.first_name)),
+      );
+      setTeamOptions(
+        members
+          .filter((member) => ['Admin', 'Follow-up Coordinator', 'Pastor'].includes(member.role))
+          .map((member) => ({ id: member.id, full_name: member.fullName })),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load volunteer details.');
       setPeople([]);
-    } else {
-      setPeople((peopleRes.data ?? []).map((r) => mapRow(r as unknown as RawRow)));
+      setTeamOptions([]);
     }
-    if (!teamRes.error && teamRes.data) setTeamOptions(teamRes.data);
-  }, [supabase, teamId]);
+  }, [teamId]);
 
   useEffect(() => {
     if (!open || !teamId) return;
@@ -335,26 +317,24 @@ function AssignMoreButton({
   teamId: string;
   onAssigned: () => void;
 }) {
-  const supabase = createClient();
   const [open, setOpen] = useState(false);
   const [unassigned, setUnassigned] = useState<Person[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('people')
-      .select('id, first_name, last_name, category')
-      .is('assigned_to', null)
-      .neq('follow_up_status', 'Completed')
-      .order('first_name', { ascending: true });
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      const rows = await listAllPeople({ assignedTo: 'unassigned', excludeCompleted: true });
+      setUnassigned(
+        rows
+          .map(personApiToRow)
+          .sort((a, b) => a.first_name.localeCompare(b.first_name)),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load unassigned people.');
       setUnassigned([]);
-      return;
     }
-    setUnassigned((data ?? []) as unknown as Person[]);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -367,15 +347,14 @@ function AssignMoreButton({
   async function assign() {
     if (chosen.size === 0) return;
     setBusy(true);
-    const { error } = await supabase
-      .from('people')
-      .update({ assigned_to: teamId })
-      .in('id', [...chosen]);
-    setBusy(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
+    try {
+      await bulkAssign([...chosen], teamId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not assign people.');
+      setBusy(false);
       return;
     }
+    setBusy(false);
     toast.success(`Assigned ${chosen.size} ${chosen.size === 1 ? 'person' : 'people'}`);
     setOpen(false);
     onAssigned();
