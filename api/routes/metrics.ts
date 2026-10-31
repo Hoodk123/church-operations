@@ -7,7 +7,12 @@ import type { FastifyInstance } from "fastify";
 import type { UserRole } from "../../src/generated/prisma/client.js";
 import { asCategory, humanize } from "../lib/enums.js";
 import { isoDate } from "../lib/route-helpers.js";
-import { volunteerOverviewSchema } from "../schemas/metrics.js";
+import {
+  homeMetricsSchema,
+  peopleOpenPageApiSchema,
+  peopleOpenQuerySchema,
+  volunteerOverviewSchema,
+} from "../schemas/metrics.js";
 
 type DB = import("../db.js").ApiPrisma;
 
@@ -62,7 +67,7 @@ export async function registerMetricsRoutes(app: FastifyInstance): Promise<void>
       orderBy: { updatedAt: "desc" },
       select: { updatedAt: true },
     });
-    return {
+    return homeMetricsSchema.parse({
       attendanceToday,
       attendanceLastSunday,
       visitorsWeek,
@@ -71,27 +76,38 @@ export async function registerMetricsRoutes(app: FastifyInstance): Promise<void>
       waitingM1,
       needBaptism,
       lastPersonUpdatedAt: latest ? latest.updatedAt.toISOString() : null,
-    };
+    });
   });
 
   // ---- Open follow-up list (the Home "needs attention" list) -----------------
-  app.get("/api/metrics/people-open", { config: { access: "auth", action: "metrics:read" } }, async (req) => {
-    const rows = await req.prisma.people.findMany({
-      where: { followUpStatus: { not: "Completed" } },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        followUpStatus: true,
-        dateRegistered: true,
-        lastContactDate: true,
-        assignedTo: true,
-        needsPastor: true,
-      },
-      orderBy: [{ createdAt: "desc" }],
-      take: 100,
-    });
-    return {
+  app.get("/api/metrics/people-open", { config: { access: "auth", action: "metrics:read" } }, async (req, reply) => {
+    const query = peopleOpenQuerySchema.safeParse(
+      Object.fromEntries(new URL(req.url, "http://localhost").searchParams),
+    );
+    if (!query.success) {
+      return reply.code(400).send({ error: "invalid people query" });
+    }
+    const where = { followUpStatus: { not: "Completed" as const } };
+    const [rows, total] = await Promise.all([
+      req.prisma.people.findMany({
+        where,
+        take: query.data.limit,
+        skip: query.data.offset,
+        orderBy: [{ createdAt: "desc" }],
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          followUpStatus: true,
+          dateRegistered: true,
+          lastContactDate: true,
+          assignedTo: true,
+          needsPastor: true,
+        },
+      }),
+      req.prisma.people.count({ where }),
+    ]);
+    return peopleOpenPageApiSchema.parse({
       items: rows.map((row) => ({
         id: row.id,
         firstName: row.firstName,
@@ -102,7 +118,8 @@ export async function registerMetricsRoutes(app: FastifyInstance): Promise<void>
         assignedTo: row.assignedTo,
         needsPastor: row.needsPastor ?? false,
       })),
-    };
+      total,
+    });
   });
 
   // ---- Volunteer overview (port of public.get_volunteer_overview) ------------

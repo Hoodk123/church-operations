@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowRight, UserCheck, UserPlus, Phone, Clock, GraduationCap, Droplets, CalendarCheck } from 'lucide-react';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince } from '@/lib/dates';
 import { cn } from '@/lib/utils';
+import { allOpenPeople, homeMetrics, volunteerOverview } from '@/lib/api/metrics';
 import PageHeader from '@/components/layout/PageHeader';
 import { useShellMember } from '@/components/layout/shell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 interface HomePerson {
   id: string;
@@ -42,14 +41,6 @@ interface Counts {
 
 const GONE_QUIET = ['Contacted', 'Met', 'Ongoing'];
 
-function isoShift(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${month}-${day}`;
-}
-
 function overdueDays(p: HomePerson): number {
   if (p.follow_up_status === 'Not Started') {
     return p.date_registered ? daysSince(p.date_registered) : 0;
@@ -67,94 +58,43 @@ function isOverdue(p: HomePerson): boolean {
   return false;
 }
 
-function fetchHomePeople(supabase: SupabaseClient) {
-  return supabase
-    .from('people')
-    .select(
-      'id, first_name, last_name, follow_up_status, date_registered, last_contact_date, assigned_to, needs_pastor'
-    )
-    .neq('follow_up_status', 'Completed');
-}
-
-function fetchCounts(supabase: SupabaseClient): Promise<Counts> {
-  const today = isoShift(0);
-  const dow = new Date().getDay();
-  const weekStart = isoShift(-dow);
-  const prevSunday = isoShift(-(dow === 0 ? 7 : dow));
-
-  const head = { count: 'exact' as const, head: true };
-
-  return Promise.all([
-    supabase.from('attendance').select('*', head).eq('service_date', today),
-    supabase.from('attendance').select('*', head).eq('service_date', prevSunday),
-    supabase
-      .from('people')
-      .select('*', head)
-      .eq('category', 'Visitor')
-      .gte('date_registered', weekStart),
-    supabase
-      .from('people')
-      .select('*', head)
-      .eq('category', 'New Convert')
-      .gte('date_registered', weekStart),
-    supabase.from('contact_log').select('*', head).gte('contacted_at', weekStart),
-    supabase
-      .from('people')
-      .select('*', head)
-      .eq('needs_m1', true),
-    supabase
-      .from('people')
-      .select('*', head)
-      .eq('needs_baptism', true)
-      .neq('baptism_status', 'Baptized'),
-  ]).then(([todayRes, sundayRes, visitorsRes, convertsRes, contactedRes, m1Res, baptismRes]) => ({
-    attendanceToday: todayRes.count ?? 0,
-    attendanceLastSunday: sundayRes.count ?? 0,
-    visitorsWeek: visitorsRes.count ?? 0,
-    convertsWeek: convertsRes.count ?? 0,
-    contactedWeek: contactedRes.count ?? 0,
-    waitingM1: m1Res.count ?? 0,
-    needBaptism: baptismRes.count ?? 0,
-  }));
-}
-
-async function fetchVolunteers(
-  supabase: SupabaseClient
-): Promise<{ error: unknown; data: VolunteerWeek[] }> {
-  const { data, error } = await supabase.rpc('get_volunteer_overview');
-  if (error || !data) return { error, data: [] };
-  const rows = (data as Record<string, unknown>[]).map((v) => ({
-    id: String(v.team_member_id ?? v.id ?? ''),
-    full_name: String(v.full_name ?? ''),
-    contacted_this_week: Number(v.contacted_this_week ?? 0),
-  }));
-  return { error: null, data: rows };
-}
-
 export default function Home() {
-  const supabase = createClient();
   const member = useShellMember();
   const isAdmin = member?.role === 'Admin';
   const [people, setPeople] = useState<HomePerson[] | null>(null);
   const [counts, setCounts] = useState<Counts | null>(null);
   const [volunteers, setVolunteers] = useState<VolunteerWeek[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
-    const [peopleRes, countsData, volunteersRes] = await Promise.all([
-      fetchHomePeople(supabase),
-      fetchCounts(supabase),
-      fetchVolunteers(supabase),
-    ]);
-    if (peopleRes.error) {
-      toast.error(rlsErrorMessage(peopleRes.error));
-      setPeople([]);
-    } else {
-      setPeople((peopleRes.data ?? []) as unknown as HomePerson[]);
+    setLoadError(false);
+    try {
+      const [openPeople, countsData, volunteersData] = await Promise.all([
+        allOpenPeople(),
+        homeMetrics(),
+        isAdmin ? volunteerOverview() : Promise.resolve({ items: [] }),
+      ]);
+      setPeople(openPeople.map((person) => ({
+        id: person.id,
+        first_name: person.firstName,
+        last_name: person.lastName,
+        follow_up_status: person.followUpStatus,
+        date_registered: person.dateRegistered,
+        last_contact_date: person.lastContactDate,
+        assigned_to: person.assignedTo,
+        needs_pastor: person.needsPastor,
+      })));
+      setCounts(countsData);
+      setVolunteers(volunteersData.items.map((volunteer) => ({
+        id: volunteer.id,
+        full_name: volunteer.fullName,
+        contacted_this_week: volunteer.contactedThisWeek,
+      })));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not load the dashboard.');
+      setLoadError(true);
     }
-    setCounts(countsData);
-    if (volunteersRes.error) toast.error(rlsErrorMessage(volunteersRes.error));
-    setVolunteers(volunteersRes.data);
-  }, [supabase]);
+  }, [isAdmin]);
 
   useEffect(() => {
     async function run() {
@@ -208,6 +148,19 @@ export default function Home() {
   }, [people, volunteers]);
 
   if (people === null || counts === null) {
+    if (loadError) {
+      return (
+        <div className="flex flex-col gap-4">
+          <PageHeader />
+          <div className="flex flex-col items-center gap-3 py-12">
+            <p role="alert" className="text-sm text-muted-foreground">
+              The dashboard could not be loaded.
+            </p>
+            <Button variant="outline" onClick={() => void load()}>Retry</Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col gap-4">
         <PageHeader />

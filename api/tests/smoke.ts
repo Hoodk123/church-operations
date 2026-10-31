@@ -387,10 +387,19 @@ async function main(): Promise<void> {
       assert.strictEqual(openList.statusCode, 200);
       const openItems = openList.json().items;
       assert.ok(Array.isArray(openItems));
+      assert.strictEqual(typeof openList.json().total, "number");
       for (const item of openItems) {
         assert.notStrictEqual(item.followUpStatus, "Completed");
         assert.ok(item.firstName !== undefined);
       }
+      const openPage = await second.inject({
+        method: "GET",
+        url: "/api/metrics/people-open?limit=1&offset=0",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(openPage.statusCode, 200);
+      assert.ok(openPage.json().items.length <= 1);
+      assert.strictEqual(openPage.json().total, openList.json().total);
 
       const volunteers = await second.inject({
         method: "GET",
