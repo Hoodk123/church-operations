@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { followUpDashboardApiSchema, followUpsQuerySchema } from "../../../api/schemas/people";
+import { followUpDashboardApiSchema, followUpsQuerySchema } from "../../../packages/shared/schemas/people";
 import { api } from "./client";
 
 export async function myFollowUps(date: string) {

@@ -7,6 +7,7 @@ import type { FastifyInstance } from "fastify";
 import type { UserRole } from "../../src/generated/prisma/client.js";
 import { asCategory, humanize } from "../lib/enums.js";
 import { isoDate } from "../lib/route-helpers.js";
+import { volunteerOverviewSchema } from "../schemas/metrics.js";
 
 type DB = import("../db.js").ApiPrisma;
 
@@ -167,6 +168,6 @@ export async function registerMetricsRoutes(app: FastifyInstance): Promise<void>
         lastActive: lastActive === null ? null : isoDate(lastActive),
       };
     });
-    return { items };
+    return volunteerOverviewSchema.parse({ items });
   });
 }

@@ -3,7 +3,7 @@
 // PATCH endpoint so the policy can require a dedicated board:move action.
 import { z } from "zod";
 import { api } from "./client";
-import { personApiSchema, followUpStatusSchema, type PersonApi } from "../../../api/schemas/people";
+import { personApiSchema, followUpStatusSchema, type PersonApi } from "../../../packages/shared/schemas/people";
 
 const boardListSchema = z.object({ items: z.array(personApiSchema) });
 

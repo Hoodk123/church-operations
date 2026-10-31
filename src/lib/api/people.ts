@@ -17,7 +17,7 @@ import {
   type ContactLogApi,
   type TeamMemberApi,
   type PersonCreateInput,
-} from "../../../api/schemas/people";
+} from "../../../packages/shared/schemas/people";
 import { z } from "zod";
 
 const contactLogCreatedSchema = z.object({
@@ -136,5 +136,5 @@ export async function recentPeople(): Promise<RecentPerson[]> {
   return recentPeopleSchema.parse(await api<unknown>("/api/people-recent")).items;
 }
 
-export type { PersonApi as Person } from "../../../api/schemas/people";
+export type { PersonApi as Person } from "../../../packages/shared/schemas/people";
 export { bulkAssignSchema };

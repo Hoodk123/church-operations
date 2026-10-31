@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
+import { ApiError } from '@/lib/api/client';
+import { listAttention } from '@/lib/api/attention';
+import { volunteerOverview } from '@/lib/api/metrics';
+import { bulkAssign, listTeamMembers } from '@/lib/api/people';
+import type { AttentionReply } from '@/lib/api/attention';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -18,10 +21,10 @@ import {
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import { useShellMember } from '@/components/layout/shell';
 import { type SelectOption } from '@/lib/select-items';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { daysSince } from '@/lib/dates';
 import { categoryColors } from '../people/constants';
 import type { Person } from '../people/columns';
+import { personApiToRow, teamMemberToOption } from '../people/adapt';
 import PersonDetailDrawer from '../people/PersonDetailDrawer';
 
 interface TeamOption {
@@ -33,26 +36,10 @@ interface VolunteerOption extends TeamOption {
   assigned: number;
 }
 
-interface AttentionRow extends Omit<Person, 'assigned_to_name' | 'registered_by_name'> {
-  assigned_to_name: { full_name: string } | null;
-  registered_by_name: { full_name: string } | null;
-}
-
-function mapRow(row: AttentionRow): Person {
-  return {
-    ...row,
-    assigned_to_name: row.assigned_to_name?.full_name ?? null,
-    registered_by_name: row.registered_by_name?.full_name ?? null,
-  };
-}
-
-function fetchAttentionPeople(supabase: SupabaseClient) {
-  return supabase
-    .from('people')
-    .select(
-      '*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)'
-    )
-    .order('first_name', { ascending: true });
+function mapAttentionPeople(reply: AttentionReply): Person[] {
+  return [...reply.unassigned, ...reply.notStarted, ...reply.goneQuiet]
+    .map(personApiToRow)
+    .sort((a, b) => a.first_name.localeCompare(b.first_name));
 }
 
 const GONE_QUIET_STATUSES = ['Contacted', 'Met', 'Ongoing'];
@@ -64,7 +51,6 @@ function formatShort(dateStr: string): string {
 }
 
 export default function NeedsAttentionPage() {
-  const supabase = createClient();
   const member = useShellMember();
   const isAdmin = member?.role === 'Admin';
   const bulkRef = useRef<HTMLDivElement | null>(null);
@@ -87,65 +73,66 @@ export default function NeedsAttentionPage() {
   );
 
   useEffect(() => {
-    let active = false;
+    let active = true;
 
     async function load() {
-      const { data, error } = await fetchAttentionPeople(supabase);
-      if (active) return;
-      if (error) {
-        toast.error(rlsErrorMessage(error));
+      try {
+        const reply = await listAttention();
+        if (!active) return;
+        setPeople(mapAttentionPeople(reply));
+      } catch (error) {
+        if (!active) return;
+        toast.error(error instanceof ApiError ? error.message : 'Could not load attention lists.');
         setPeople([]);
-        return;
       }
-      setPeople((data ?? []).map((r) => mapRow(r as AttentionRow)));
     }
 
     async function loadVolunteers() {
-      const { data, error } = await supabase.rpc('get_volunteer_overview');
-      if (active) return;
-      if (error || !data) {
-        const fallback = await supabase
-          .from('team_members')
-          .select('id, full_name')
-          .order('full_name', { ascending: true });
-        if (active) return;
-        if (!fallback.error && fallback.data) {
-          setVolunteers(
-            (fallback.data as TeamOption[]).map((t) => ({ ...t, assigned: 0 }))
-          );
+      if (!isAdmin) return;
+      try {
+        const response = await volunteerOverview();
+        if (!active) return;
+        const rows = response.items.map((row) => ({
+          id: row.id,
+          full_name: row.fullName,
+          assigned: row.assigned,
+        }));
+        setVolunteers(rows);
+        const fewest = rows.reduce<VolunteerOption | null>(
+          (best, volunteer) =>
+            best === null || volunteer.assigned < best.assigned ? volunteer : best,
+          null,
+        );
+        if (fewest) setTarget(fewest.id);
+      } catch (error) {
+        if (!active) return;
+        toast.error(
+          error instanceof ApiError
+            ? 'Volunteer counts unavailable; showing names only.'
+            : 'Could not load volunteer counts.',
+        );
+        try {
+          const members = await listTeamMembers();
+          if (active) setVolunteers(members.map((row) => ({ ...teamMemberToOption(row), assigned: 0 })));
+        } catch {
+          if (active) toast.error('Could not load team members.');
         }
-        return;
       }
-      const rows = (data as VolunteerOption[]).map((v) => ({
-        id: v.id ?? (v as unknown as { team_member_id: string }).team_member_id,
-        full_name: v.full_name,
-        assigned: v.assigned ?? 0,
-      }));
-      setVolunteers(rows);
-      const fewest = rows.reduce<VolunteerOption | null>(
-        (best, v) => (best === null || v.assigned < best.assigned ? v : best),
-        null
-      );
-      if (fewest) setTarget(fewest.id);
     }
 
-    async function run() {
-      await load();
-      await loadVolunteers();
-    }
-    void run();
+    void load();
+    void loadVolunteers();
     return () => {
-      active = true;
+      active = false;
     };
-  }, [supabase]);
+  }, [isAdmin]);
 
   const refresh = async () => {
-    const { data, error } = await fetchAttentionPeople(supabase);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      setPeople(mapAttentionPeople(await listAttention()));
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not refresh attention lists.');
     }
-    setPeople((data ?? []).map((r) => mapRow(r as AttentionRow)));
   };
 
   const lists = useMemo(() => {
@@ -182,20 +169,18 @@ export default function NeedsAttentionPage() {
   async function assignSelected(teamId: string) {
     if (selected.size === 0 || !teamId) return;
     setAssigning(true);
-    const { error } = await supabase
-      .from('people')
-      .update({ assigned_to: teamId })
-      .in('id', [...selected]);
-    setAssigning(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await bulkAssign([...selected], teamId);
+      toast.success(
+        `Assigned ${selected.size} ${selected.size === 1 ? 'person' : 'people'}`
+      );
+      setSelected(new Set());
+      await refresh();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not assign selected people.');
+    } finally {
+      setAssigning(false);
     }
-    toast.success(
-      `Assigned ${selected.size} ${selected.size === 1 ? 'person' : 'people'}`
-    );
-    setSelected(new Set());
-    void refresh();
   }
 
   function openDetail(person: Person) {

@@ -1,6 +1,6 @@
 // Mapping layer between the API's camelCase shapes and the legacy snake_case
 // rows the people screens (table, toolbar, drawer) render. [local-first]
-import type { ContactLogApi, PersonApi, TeamMemberApi } from '../../../api/schemas/people';
+import type { ContactLogApi, PersonApi, TeamMemberApi } from '../../../packages/shared/schemas/people';
 import type { Person } from './columns';
 
 export function personApiToRow(p: PersonApi): Person {

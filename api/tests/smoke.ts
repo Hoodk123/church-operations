@@ -405,6 +405,15 @@ async function main(): Promise<void> {
         assert.ok(validRoles.includes(item.role), `role humanized: ${item.role}`);
       }
 
+      const attention = await second.inject({
+        method: "GET",
+        url: "/api/attention",
+        headers: { origin: env.APP_ORIGIN, cookie: adminCookie },
+      });
+      assert.strictEqual(attention.statusCode, 200);
+      assert.strictEqual(typeof attention.json().counts.unassigned, "number");
+      assert.ok(Array.isArray(attention.json().unassigned));
+
       // volunteers overview is Admin-only (the old RPC was gated the same way)
       const deskVolunteers = await second.inject({
         method: "GET",
@@ -468,6 +477,24 @@ async function main(): Promise<void> {
       const coordSession = coordLogin.cookies.find((c) => c.name === "ch_sess")?.value ?? "";
       const coordCsrf = coordLogin.cookies.find((c) => c.name === "ch_csrf")?.value ?? "";
       const coordCookie = `ch_sess=${coordSession}; ch_csrf=${coordCsrf}`;
+      const coordinatorMemberId = (await prisma.teamMembers.findFirst({
+        where: { role: "FollowUpCoordinator" },
+      }))?.id;
+      assert.ok(coordinatorMemberId);
+      const coordinatorAttention = await second.inject({
+        method: "GET",
+        url: "/api/attention",
+        headers: { origin: env.APP_ORIGIN, cookie: coordCookie },
+      });
+      assert.strictEqual(coordinatorAttention.statusCode, 200);
+      const coordinatorAttentionBody = coordinatorAttention.json();
+      assert.strictEqual(coordinatorAttentionBody.unassigned.length, 0);
+      for (const list of [
+        coordinatorAttentionBody.notStarted,
+        coordinatorAttentionBody.goneQuiet,
+      ]) {
+        assert.ok(list.every((person: { assignedTo: string | null }) => person.assignedTo === coordinatorMemberId));
+      }
 
       // unassigned -> forbidden
       const coordMoveUnassigned = await second.inject({
@@ -483,7 +510,7 @@ async function main(): Promise<void> {
         method: "PATCH",
         url: `/api/people/${boardPersonId}/assign`,
         headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
-        payload: { assignedTo: (await prisma.teamMembers.findFirst({ where: { role: "FollowUpCoordinator" } }))?.id },
+        payload: { assignedTo: coordinatorMemberId },
       });
       assert.strictEqual(assignToCoord.statusCode, 200);
       const coordMoveAssigned = await second.inject({
