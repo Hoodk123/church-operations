@@ -10,8 +10,6 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient } from '@/lib/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Empty, EmptyTitle } from '@/components/ui/empty';
 import {
@@ -25,9 +23,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import { useShellMember } from '@/components/layout/shell';
 import { useIsMobile } from '@/lib/use-is-mobile';
-import { rlsErrorMessage } from '@/lib/rls-error';
 import { type SelectOption } from '@/lib/select-items';
 import { toast } from 'sonner';
+import { ApiError } from '@/lib/api/client';
+import { listBoard, moveFollowUpStatus } from '@/lib/api/board';
+import { listTeamMembers } from '@/lib/api/people';
+import { personApiToRow, teamMemberToOption } from '../people/adapt';
 import { categories, followUpStatuses } from '../people/constants';
 import type { Person } from '../people/columns';
 import { BoardColumn } from './BoardColumn';
@@ -39,28 +40,6 @@ interface TeamOption {
   full_name: string;
 }
 
-interface BoardRow extends Omit<Person, 'assigned_to_name' | 'registered_by_name'> {
-  assigned_to_name: { full_name: string } | null;
-  registered_by_name: { full_name: string } | null;
-}
-
-function mapRow(row: BoardRow): Person {
-  return {
-    ...row,
-    assigned_to_name: row.assigned_to_name?.full_name ?? null,
-    registered_by_name: row.registered_by_name?.full_name ?? null,
-  };
-}
-
-function fetchBoardPeople(supabase: SupabaseClient) {
-  return supabase
-    .from('people')
-    .select(
-      '*, assigned_to_name:team_members!people_assigned_to_fkey(full_name), registered_by_name:team_members!people_registered_by_fkey(full_name)'
-    )
-    .order('first_name', { ascending: true });
-}
-
 function thirtyDaysAgoISO(): string {
   return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 }
@@ -70,7 +49,6 @@ function isStatus(value: string): value is BoardStatus {
 }
 
 export default function BoardPage() {
-  const supabase = createClient();
   const member = useShellMember();
   const isMobile = useIsMobile();
 
@@ -97,31 +75,34 @@ export default function BoardPage() {
   );
 
   useEffect(() => {
-    let active = false;
+    let active = true;
     async function load() {
-      const { data, error } = await fetchBoardPeople(supabase);
-      if (active) return;
-      if (error) {
-        toast.error(rlsErrorMessage(error));
+      try {
+        const rows = await listBoard();
+        if (!active) return;
+        setPeople(rows.map(personApiToRow));
+      } catch (error) {
+        if (!active) return;
+        toast.error(error instanceof ApiError ? error.message : 'Could not load the board.');
         setPeople([]);
-        return;
       }
-      setPeople((data ?? []).map((r) => mapRow(r as BoardRow)));
     }
     async function loadTeam() {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('id, full_name')
-        .order('full_name', { ascending: true });
-      if (active) return;
-      if (!error && data) setTeamMembers(data);
+      try {
+        const members = await listTeamMembers();
+        if (active) setTeamMembers(members.map(teamMemberToOption));
+      } catch (error) {
+        if (active) {
+          toast.error(error instanceof ApiError ? error.message : 'Could not load team members.');
+        }
+      }
     }
-    load();
-    loadTeam();
+    void load();
+    void loadTeam();
     return () => {
-      active = true;
+      active = false;
     };
-  }, [supabase]);
+  }, []);
 
   const groups = useMemo(() => {
     const result: Record<BoardStatus, Person[]> = {
@@ -157,17 +138,19 @@ export default function BoardPage() {
       setPeople((prev) =>
         prev ? prev.map((p) => (p.id === person.id ? { ...p, follow_up_status: to } : p)) : prev
       );
-      const { error } = await supabase
-        .from('people')
-        .update({ follow_up_status: to })
-        .eq('id', person.id);
-      setMovingId(null);
-      if (error) {
-        toast.error(rlsErrorMessage(error));
+      try {
+        const updated = await moveFollowUpStatus(person.id, to);
+        setPeople((current) =>
+          current ? current.map((p) => (p.id === person.id ? personApiToRow(updated) : p)) : current
+        );
+      } catch (error) {
+        toast.error(error instanceof ApiError ? error.message : 'Could not move follow-up.');
         if (previous) setPeople(previous);
+      } finally {
+        setMovingId(null);
       }
     },
-    [supabase, movingId, people]
+    [movingId, people]
   );
 
   const sensors = useSensors(
