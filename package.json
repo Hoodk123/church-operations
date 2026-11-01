@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "api:typecheck": "tsc --noEmit -p api",
+    "dev:reset-password": "tsx scripts/reset-dev-password.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

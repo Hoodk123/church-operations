@@ -112,6 +112,7 @@ Notes:
 
 - `npx prisma migrate deploy` reads its connection from `.env` (the same `POSTGRES_*`/`PG_PORT` keys the database uses) and runs as `church_owner` — migrations are an owner task. Your typed passwords stay out of this conversation; the seed passwords appear only in your terminal on first run, or on any later run after a `db-reset-dev.sh`.
 - `npx prisma db seed` connects as `church_app` — the same limited role the future API uses, so seeding doubles as a test that the app role can actually do its work.
+- Seed passwords are random and cannot be viewed later. To reset one local seeded login, run `npm run dev:reset-password`; it generates a new password and shows it once. The command refuses non-dev environments and non-local database hosts. It also ends existing sessions for that account.
 - Anything in the database that went out of sync can be proved instantly:
 
 ```bash
