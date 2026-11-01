@@ -5,9 +5,13 @@ import type { FastifyInstance } from "fastify";
 import { audit } from "../audit.js";
 import { currentMember, day, isoDate } from "../lib/route-helpers.js";
 import { humanize } from "../lib/enums.js";
+import {
+  baptismEventInputSchema,
+  baptismEventPatchSchema,
+  baptismRegistrationInputSchema,
+} from "../schemas/baptism.js";
 
 const idParam = z.uuid();
-const eventStatusSchema = z.enum(["Scheduled", "Done", "Cancelled"]);
 
 function timeLabel(value: Date | string | null): string | null {
   if (value === null) return null;
@@ -128,15 +132,7 @@ export async function registerBaptismRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.post("/api/baptism/events", { config: { access: "auth", action: "baptism:write" } }, async (req, reply) => {
-    const parsed = z
-      .object({
-        eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-        eventTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
-        venue: z.string().max(200).nullish().transform((v) => (v?.trim() ? v.trim() : null)),
-        notes: z.string().max(2000).nullish().transform((v) => (v?.trim() ? v.trim() : null)),
-        status: eventStatusSchema.default("Scheduled"),
-      })
-      .safeParse(req.body);
+    const parsed = baptismEventInputSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "invalid event body" });
     }
@@ -167,16 +163,7 @@ export async function registerBaptismRoutes(app: FastifyInstance): Promise<void>
     async (req, reply) => {
       const param = idParam.safeParse(req.params.id);
       if (!param.success) return reply.code(400).send({ error: "invalid event id" });
-      const parsed = z
-        .object({
-          eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-          eventTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullish(),
-          venue: z.string().max(200).nullish(),
-          notes: z.string().max(2000).nullish(),
-          status: eventStatusSchema.optional(),
-          archivedAt: z.string().datetime().nullable().optional(),
-        })
-        .safeParse(req.body);
+        const parsed = baptismEventPatchSchema.safeParse(req.body);
       if (!parsed.success) return reply.code(400).send({ error: "invalid event body" });
       const existing = await req.prisma.baptismEvents.findUnique({ where: { id: param.data } });
       if (!existing) return reply.code(404).send({ error: "not found" });
@@ -270,9 +257,7 @@ export async function registerBaptismRoutes(app: FastifyInstance): Promise<void>
   );
 
   app.post("/api/baptism/registrations", { config: { access: "auth", action: "baptism:write" } }, async (req, reply) => {
-    const parsed = z
-      .object({ eventId: z.uuid(), personId: z.uuid() })
-      .safeParse(req.body);
+    const parsed = baptismRegistrationInputSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "invalid registration body" });
     const event = await req.prisma.baptismEvents.findUnique({ where: { id: parsed.data.eventId } });
     const person = await req.prisma.people.findUnique({ where: { id: parsed.data.personId }, select: { id: true } });

@@ -2,9 +2,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CalendarPlus, Droplets, Pencil, Send, Trash2, Archive, ArchiveRestore } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { rlsErrorMessage } from '@/lib/rls-error';
-import { fetchEnrollments, fetchM1Classes } from '@/components/m1/m1';
+import {
+  archiveBaptismEvent,
+  createBaptismEvent,
+  deleteBaptismEvent,
+  fetchBaptismCandidates,
+  fetchBaptismEvents,
+  fetchBaptismRegistrations,
+  markBaptismEventDone,
+  registerForBaptism,
+  unregisterFromBaptism,
+  updateBaptismEvent,
+} from '@/lib/api/baptism';
+import { ApiError } from '@/lib/api/client';
+import type {
+  BaptismCandidate,
+  BaptismEvent as ApiBaptismEvent,
+  BaptismRegistration,
+  BaptismRegistrationPerson,
+} from '../../../packages/shared/schemas/baptism';
 import { logM1Message } from '@/lib/api/m1';
 import { useShellMember } from '@/components/layout/shell';
 import { personName, fmtDate, fmtDateFull, fmtTime, venueLabel, nextSundayISO } from '@/components/m1/m1';
@@ -51,40 +67,25 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
-interface BaptismEvent {
-  id: string;
-  event_date: string;
-  event_time: string | null;
-  venue: string | null;
-  status: string;
-  notes: string | null;
-  archived_at: string | null;
+type BaptismEvent = ApiBaptismEvent;
+type Registration = BaptismRegistration;
+type Candidate = BaptismCandidate;
+type Named = Pick<Candidate, 'firstName' | 'lastName'>;
+
+function displayName(person: Named) {
+  return personName({ first_name: person.firstName, last_name: person.lastName });
 }
 
-interface RegPerson {
-  id: string;
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  email: string | null;
-  contact_preference: string | null;
-  address_details: string | null;
-  location: string | null;
+function messageRecipient(person: BaptismRegistrationPerson | Candidate): ComposeRecipient {
+  return {
+    id: person.id,
+    first_name: person.firstName,
+    last_name: person.lastName,
+    phone: person.phone,
+    email: person.email,
+    contact_preference: person.contactPreference,
+  };
 }
-
-interface Registration {
-  id: string;
-  event_id: string;
-  person_id: string;
-  status: string;
-  baptized_at: string | null;
-  people: RegPerson | null;
-}
-
-type Candidate = Record<string, string>;
-type Named = { first_name: string; last_name: string };
-
-const asNamed = (p: unknown) => p as Named;
 
 interface EditState {
   id: string | null;
@@ -92,12 +93,11 @@ interface EditState {
   time: string;
   venue: string;
   notes: string;
-  status: string;
+  status: BaptismEvent['status'];
 }
 
 export default function BaptismPage() {
   const member = useShellMember();
-  const supabase = createClient();
 
   const role = member?.role ?? '';
   const isAdmin = role === 'Admin';
@@ -106,7 +106,6 @@ export default function BaptismPage() {
   const canWrite = isAdmin || isPastor;
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [completed, setCompleted] = useState<Record<string, string>>({});
   const [events, setEvents] = useState<BaptismEvent[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,55 +127,28 @@ export default function BaptismPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [candRes, eventRes, regRes] = await Promise.all([
-      supabase.rpc('baptism_candidates'),
-      supabase.from('baptism_events').select('*').order('event_date', { ascending: true }),
-      supabase
-        .from('baptism_registrations')
-        .select(
-          'id, event_id, person_id, status, baptized_at, people(id, first_name, last_name, phone, email, contact_preference, address_details, location)'
-        ),
-    ]);
-
-    const rows = (candRes.data ?? []) as Candidate[];
-    setCandidates(rows);
-    setEvents(
-      ((eventRes.data ?? []) as BaptismEvent[]).map((e) => ({
-        id: e.id,
-        event_date: e.event_date,
-        event_time: e.event_time,
-        venue: e.venue,
-        status: e.status,
-        notes: e.notes,
-        archived_at: e.archived_at,
-      }))
-    );
-    setRegistrations((regRes.data ?? []) as unknown as Registration[]);
-
-    if (rows.length > 0) {
-      const classes = await fetchM1Classes();
-      const enrollmentGroups = await Promise.all(classes.map((klass) => fetchEnrollments(klass.id)));
-      const peopleIds = new Set(rows.map((row) => row.id));
-      const map: Record<string, string> = {};
-      for (const enrollment of enrollmentGroups.flat()) {
-        const issuedAt = enrollment.certificate_issued_at;
-        if (!issuedAt || !peopleIds.has(enrollment.person_id)) continue;
-        const prev = map[enrollment.person_id];
-        if (!prev || prev < issuedAt) map[enrollment.person_id] = issuedAt;
-      }
-      setCompleted(map);
-    } else {
-      setCompleted({});
+    try {
+      const [candidateRows, eventRows, registrationRows] = await Promise.all([
+        fetchBaptismCandidates(),
+        fetchBaptismEvents(),
+        fetchBaptismRegistrations(),
+      ]);
+      setCandidates(candidateRows);
+      setEvents(eventRows);
+      setRegistrations(registrationRows);
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : 'Could not load baptism information.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const activeEvents = useMemo(
-    () => events.filter((e) => (showArchived ? true : !e.archived_at)),
+    () => events.filter((e) => (showArchived ? true : !e.archivedAt)),
     [events, showArchived]
   );
   const scheduledEvents = useMemo(
@@ -196,30 +168,32 @@ export default function BaptismPage() {
   const registeredByEvent = useMemo(() => {
     const map: Record<string, Registration[]> = {};
     for (const r of registered) {
-      (map[r.event_id] ??= []).push(r);
+      (map[r.eventId] ??= []).push(r);
     }
     return map;
   }, [registered]);
 
   function valuesFor(templateBody: string, person: Named) {
-    const first = templateBody.includes('{name}') ? person.first_name : personName(person);
+    const first = templateBody.includes('{name}')
+      ? person.firstName
+      : displayName(person);
     return {
       name: first,
-      date: nextEvent ? fmtDateFull(nextEvent.event_date) : '',
-      time: nextEvent && nextEvent.event_time ? fmtTime(nextEvent.event_time) : '',
+      date: nextEvent ? fmtDateFull(nextEvent.eventDate) : '',
+      time: nextEvent?.eventTime ? fmtTime(nextEvent.eventTime) : '',
       venue: nextEvent ? venueLabel(nextEvent.venue) : '',
       volunteer: member?.full_name ?? 'Pastor',
     };
   }
 
-  async function prepareReminder(person: RegPerson | Candidate) {
+  async function prepareReminder(person: BaptismRegistrationPerson | Candidate) {
     const template = await fetchTemplate('baptism_reminder');
-    const body = template ? fillTemplate(template.body, valuesFor(template.body, asNamed(person))) : '';
+    const body = template ? fillTemplate(template.body, valuesFor(template.body, person)) : '';
     if (!template) {
       toast.info('No baptism reminder template is set up.');
       return;
     }
-    setCompose({ person: person as unknown as ComposeRecipient, body });
+    setCompose({ person: messageRecipient(person), body });
   }
 
   function openNew() {
@@ -236,8 +210,8 @@ export default function BaptismPage() {
   function openEdit(event: BaptismEvent) {
     setEdit({
       id: event.id,
-      date: event.event_date,
-      time: (event.event_time ?? '').slice(0, 5),
+      date: event.eventDate,
+      time: event.eventTime ?? '',
       venue: event.venue ?? '',
       notes: event.notes ?? '',
       status: event.status,
@@ -252,41 +226,39 @@ export default function BaptismPage() {
     }
     setSavingEdit(true);
     const payload = {
-      event_date: edit.date,
-      event_time: edit.time || null,
+      eventDate: edit.date,
+      eventTime: edit.time || null,
       venue: edit.venue.trim() || null,
       notes: edit.notes.trim() || null,
       status: edit.status,
     };
-    const { error } = edit.id
-      ? await supabase.from('baptism_events').update(payload).eq('id', edit.id)
-      : await supabase
-          .from('baptism_events')
-          .insert({ ...payload, created_by: member?.id ?? null });
-    setSavingEdit(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      if (edit.id) await updateBaptismEvent(edit.id, payload);
+      else await createBaptismEvent(payload);
+      toast.success(edit.id ? 'Service updated' : 'Service scheduled');
+      setEdit(null);
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save service.');
+    } finally {
+      setSavingEdit(false);
     }
-    toast.success(edit.id ? 'Service updated' : 'Service scheduled');
-    setEdit(null);
-    void load();
   }
 
   async function toggleArchive(event: BaptismEvent) {
-    const archived_at = event.archived_at ? null : new Date().toISOString();
-    const { error } = await supabase.from('baptism_events').update({ archived_at }).eq('id', event.id);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    const archivedAt = event.archivedAt ? null : new Date().toISOString();
+    try {
+      await archiveBaptismEvent(event.id, archivedAt);
+      toast.success(archivedAt ? 'Service archived' : 'Service restored');
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update service.');
     }
-    toast.success(archived_at ? 'Service archived' : 'Service restored');
-    void load();
   }
 
   function openDelete(event: BaptismEvent) {
     const regs = registeredByEvent[event.id] ?? [];
-    const bap = baptized.filter((r) => r.event_id === event.id).length;
+    const bap = baptized.filter((r) => r.eventId === event.id).length;
     setDeleteCounts({ registered: regs.length, baptized: bap });
     setDeleteConfirm('');
     setDeleteEvent(event);
@@ -295,48 +267,37 @@ export default function BaptismPage() {
   async function confirmDelete() {
     if (!deleteEvent) return;
     setDeleting(true);
-    const { error } = await supabase.rpc('delete_baptism_event', { p_event: deleteEvent.id });
-    setDeleting(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await deleteBaptismEvent(deleteEvent.id);
+      toast.success('Service deleted');
+      setDeleteEvent(null);
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete service.');
+    } finally {
+      setDeleting(false);
     }
-    toast.success('Service deleted');
-    setDeleteEvent(null);
-    void load();
   }
 
   async function markDone(event: BaptismEvent) {
-    const { error } = await supabase
-      .from('baptism_events')
-      .update({ status: 'Done' })
-      .eq('id', event.id);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await markBaptismEventDone(event.id);
+      toast.success('Service marked done; registered people marked baptized');
+      setMarkDoneFor(null);
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not mark service done.');
     }
-    const { error: regErr } = await supabase
-      .from('baptism_registrations')
-      .update({ status: 'Baptized' })
-      .eq('event_id', event.id)
-      .eq('status', 'Registered');
-    if (regErr) {
-      toast.error(rlsErrorMessage(regErr));
-      return;
-    }
-    toast.success('Service marked done; registered people marked baptized');
-    setMarkDoneFor(null);
-    void load();
   }
 
   async function unregister(reg: Registration) {
-    const { error } = await supabase.from('baptism_registrations').delete().eq('id', reg.id);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await unregisterFromBaptism(reg.id);
+      toast.success(`${displayName(reg.person)} removed`);
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not unregister person.');
     }
-    toast.success(`${personName(reg.people ?? { first_name: '', last_name: '' })} removed`);
-    void load();
   }
 
   async function register(row: Candidate) {
@@ -345,21 +306,17 @@ export default function BaptismPage() {
       return;
     }
     setSavingRegister(true);
-    const { error } = await supabase.from('baptism_registrations').insert({
-      event_id: registerEvent,
-      person_id: row.id,
-      status: 'Registered',
-      created_by: member?.id ?? null,
-    });
-    setSavingRegister(false);
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      return;
+    try {
+      await registerForBaptism({ eventId: registerEvent, personId: row.id });
+      toast.success(`${row.firstName} added to the service`);
+      setRegisterFor(null);
+      setRegisterEvent('');
+      void load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not register person.');
+    } finally {
+      setSavingRegister(false);
     }
-    toast.success(`${row.first_name} added to the service`);
-    setRegisterFor(null);
-    setRegisterEvent('');
-    void load();
   }
 
   const scheduledCount = registered.length;
@@ -416,20 +373,20 @@ export default function BaptismPage() {
                 </thead>
                 <tbody>
                   {candidates.map((row) => {
-                    const issued = completed[row.id];
+                    const issued = row.m1CompletedAt;
                     return (
                       <tr key={row.id} className="border-t">
                         <td className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <Avatar size="sm">
-                              <AvatarFallback>{initials(row.first_name ?? '', row.last_name ?? '')}</AvatarFallback>
+                              <AvatarFallback>{initials(row.firstName, row.lastName)}</AvatarFallback>
                             </Avatar>
-                            <span className="font-medium">{personName(row as never)}</span>
+                            <span className="font-medium">{displayName(row)}</span>
                           </div>
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">{row.phone || '—'}</td>
                         <td className="truncate px-3 py-2 text-muted-foreground">
-                          {[row.address_details, row.location].filter(Boolean).join(', ') || '—'}
+                          {[row.addressDetails, row.location].filter(Boolean).join(', ') || '—'}
                         </td>
                         <td className="px-3 py-2">
                           {issued ? (
@@ -443,7 +400,7 @@ export default function BaptismPage() {
                             <Badge variant="outline">Not in M1</Badge>
                           )}
                         </td>
-                        <td className="px-3 py-2 text-muted-foreground">{row.contact_preference || '—'}</td>
+                        <td className="px-3 py-2 text-muted-foreground">{row.contactPreference || '—'}</td>
                         <td className="px-3 py-2">
                           {isLeader && (
                             <div className="flex justify-end gap-2">
@@ -476,7 +433,7 @@ export default function BaptismPage() {
           <ServicesStrip
             events={activeEvents}
             totalCount={events.length}
-            anyArchived={events.some((e) => e.archived_at)}
+            anyArchived={events.some((e) => e.archivedAt)}
             registeredByEvent={registeredByEvent}
             isAdmin={isAdmin}
             isLeader={isLeader}
@@ -502,8 +459,8 @@ export default function BaptismPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium">
-                          {fmtDateFull(event.event_date)}
-                          {event.event_time && ` · ${fmtTime(event.event_time)}`}
+                          {fmtDateFull(event.eventDate)}
+                          {event.eventTime && ` · ${fmtTime(event.eventTime)}`}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {venueLabel(event.venue)} · {group.length}{' '}
@@ -531,11 +488,11 @@ export default function BaptismPage() {
                           <div className="flex min-w-0 items-center gap-2">
                             <Avatar size="sm">
                               <AvatarFallback>
-                                {initials(reg.people?.first_name ?? '', reg.people?.last_name ?? '')}
+                                {initials(reg.person.firstName, reg.person.lastName)}
                               </AvatarFallback>
                             </Avatar>
                             <span className="truncate text-sm font-medium">
-                              {personName(reg.people ?? { first_name: '', last_name: '' })}
+                              {displayName(reg.person)}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -573,22 +530,22 @@ export default function BaptismPage() {
                 </thead>
                 <tbody>
                   {baptized.map((reg) => {
-                    const event = events.find((e) => e.id === reg.event_id);
+                    const event = events.find((e) => e.id === reg.eventId);
                     return (
                       <tr key={reg.id} className="border-t">
                         <td className="px-3 py-2 font-medium">
                           <Link
-                            to={`/people?person=${reg.person_id}`}
+                            to={`/people?person=${reg.personId}`}
                             className="underline-offset-4 hover:underline"
                           >
-                            {personName(reg.people ?? { first_name: '', last_name: '' })}
+                            {displayName(reg.person)}
                           </Link>
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {reg.baptized_at ? fmtDateFull(reg.baptized_at.slice(0, 10)) : '—'}
+                          {reg.baptizedAt ? fmtDateFull(reg.baptizedAt.slice(0, 10)) : '—'}
                         </td>
                         <td className="px-3 py-2 text-muted-foreground">
-                          {event ? `${fmtDateFull(event.event_date)} · ${venueLabel(event.venue)}` : '—'}
+                          {event ? `${fmtDateFull(event.eventDate)} · ${venueLabel(event.venue)}` : '—'}
                         </td>
                       </tr>
                     );
@@ -660,7 +617,7 @@ export default function BaptismPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this service?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteEvent && `${fmtDateFull(deleteEvent.event_date)} has `}
+              {deleteEvent && `${fmtDateFull(deleteEvent.eventDate)} has `}
               {deleteCounts?.registered ?? 0} registered and {deleteCounts?.baptized ?? 0} baptized. People are never
               deleted; those not yet baptized go back to Needs baptism.
             </AlertDialogDescription>
@@ -673,7 +630,7 @@ export default function BaptismPage() {
               <Input
                 value={deleteConfirm}
                 onChange={(e) => setDeleteConfirm(e.target.value)}
-                placeholder={fmtDateFull(deleteEvent.event_date)}
+                placeholder={fmtDateFull(deleteEvent.eventDate)}
               />
             </div>
           )}
@@ -691,7 +648,7 @@ export default function BaptismPage() {
                 deleting ||
                 ((deleteCounts?.registered ?? 0) > 0 &&
                   deleteEvent !== null &&
-                  deleteConfirm.trim() !== fmtDateFull(deleteEvent.event_date))
+                  deleteConfirm.trim() !== fmtDateFull(deleteEvent.eventDate))
               }
               onClick={confirmDelete}
             >
@@ -759,8 +716,8 @@ function ServicesStrip({
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-medium">
-                {fmtDateFull(event.event_date)}
-                {event.event_time && ` · ${fmtTime(event.event_time)}`}
+                {fmtDateFull(event.eventDate)}
+                {event.eventTime && ` · ${fmtTime(event.eventTime)}`}
               </p>
               <p className="truncate text-xs text-muted-foreground">
                 {venueLabel(event.venue)} · {(registeredByEvent[event.id] ?? []).length}{' '}
@@ -768,8 +725,8 @@ function ServicesStrip({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1">
-              {event.archived_at && <Badge variant="outline">Archived</Badge>}
-              {event.status === 'Done' && !event.archived_at && <Badge variant="outline">Done</Badge>}
+              {event.archivedAt && <Badge variant="outline">Archived</Badge>}
+              {event.status === 'Done' && !event.archivedAt && <Badge variant="outline">Done</Badge>}
               {canWrite && event.status === 'Scheduled' && (
                 <Button size="xs" variant="outline" onClick={() => onMarkDone(event)}>
                   Mark done
@@ -785,9 +742,9 @@ function ServicesStrip({
                   size="xs"
                   variant="ghost"
                   onClick={() => onArchive(event)}
-                  aria-label={event.archived_at ? 'Restore service' : 'Archive service'}
+                  aria-label={event.archivedAt ? 'Restore service' : 'Archive service'}
                 >
-                  {event.archived_at ? (
+                  {event.archivedAt ? (
                     <ArchiveRestore className="size-3.5" />
                   ) : (
                     <Archive className="size-3.5" />
@@ -912,7 +869,7 @@ function RegisterDialog({
         {row && (
           <>
             <DialogHeader>
-              <DialogTitle>Register {row.first_name}</DialogTitle>
+              <DialogTitle>Register {row.firstName}</DialogTitle>
               <DialogDescription>Choose the service and add a note if needed.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -922,7 +879,7 @@ function RegisterDialog({
                   <p className="text-sm text-muted-foreground">Create a service first.</p>
                 ) : (
                   <Select
-                    items={events.map((e) => ({ value: e.id, label: fmtDateFull(e.event_date) }))}
+                    items={events.map((e) => ({ value: e.id, label: fmtDateFull(e.eventDate) }))}
                     value={eventId || undefined}
                     onValueChange={(v) => v && onEvent(v)}
                   >
@@ -932,8 +889,8 @@ function RegisterDialog({
                     <SelectContent>
                       {events.map((e) => (
                         <SelectItem key={e.id} value={e.id}>
-                          {fmtDateFull(e.event_date)}
-                          {e.event_time ? ` · ${fmtTime(e.event_time)}` : ''}
+                          {fmtDateFull(e.eventDate)}
+                          {e.eventTime ? ` · ${fmtTime(e.eventTime)}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -983,21 +940,22 @@ function SendRemindersDialog({
   }, [event]);
 
   async function send(reg: Registration) {
-    const person = reg.people;
-    if (!person || !template) return;
-    const channel = pickChannel(person);
+    const person = reg.person;
+    if (!template) return;
+    const recipient = messageRecipient(person);
+    const channel = pickChannel(recipient);
     if (!channel || channel === 'Call') {
-      toast.error(`No WhatsApp, email or SMS contact for ${person.first_name}`);
+      toast.error(`No WhatsApp, email or SMS contact for ${person.firstName}`);
       return;
     }
     const body = fillTemplate(template.body, {
-      name: template.body.includes('{name}') ? person.first_name : personName(person),
-      date: event ? fmtDateFull(event.event_date) : '',
-      time: event && event.event_time ? fmtTime(event.event_time) : '',
+      name: template.body.includes('{name}') ? person.firstName : displayName(person),
+      date: event ? fmtDateFull(event.eventDate) : '',
+      time: event?.eventTime ? fmtTime(event.eventTime) : '',
       venue: event ? venueLabel(event.venue) : '',
       volunteer: member?.full_name ?? 'Pastor',
     });
-    const href = messageHref(channel, person, { subject: template.name, body });
+    const href = messageHref(channel, recipient, { subject: template.name, body });
     if (!href) {
       toast.error(`No ${channel} contact on file`);
       return;
@@ -1007,7 +965,7 @@ function SendRemindersDialog({
     let failed = false;
     try {
       await logM1Message({
-        personId: reg.person_id,
+        personId: reg.personId,
         classId: null,
         sessionId: null,
         purpose: 'baptism',
@@ -1015,15 +973,15 @@ function SendRemindersDialog({
       });
     } catch (error) {
       failed = true;
-      toast.error(rlsErrorMessage(error));
+      toast.error(error instanceof Error ? error.message : 'Could not log message.');
     }
     setSending(null);
     setSent((prev) => ({ ...prev, [reg.id]: true }));
     if (failed) {
-      toast.info(`${personName(person)}: opened in ${channel}`);
+      toast.info(`${displayName(person)}: opened in ${channel}`);
       return;
     }
-    toast.success(`${personName(person)}: opened in ${channel}`);
+    toast.success(`${displayName(person)}: opened in ${channel}`);
   }
 
   return (
@@ -1032,7 +990,7 @@ function SendRemindersDialog({
         <DialogHeader>
           <DialogTitle>Send baptism reminder</DialogTitle>
           <DialogDescription>
-            {event ? `${fmtDateFull(event.event_date)} · ${venueLabel(event.venue)}` : ''}
+            {event ? `${fmtDateFull(event.eventDate)} · ${venueLabel(event.venue)}` : ''}
           </DialogDescription>
         </DialogHeader>
         {roster.length === 0 ? (
@@ -1040,12 +998,13 @@ function SendRemindersDialog({
         ) : (
           <div className="flex max-h-[50dvh] flex-col gap-1.5 overflow-y-auto">
             {roster.map((reg) => {
-              const channel = reg.people ? pickChannel(reg.people) : null;
+              const recipient = messageRecipient(reg.person);
+              const channel = pickChannel(recipient);
               return (
                 <div key={reg.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">
-                      {personName(reg.people ?? { first_name: '', last_name: '' })}
+                      {displayName(reg.person)}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">{channel ?? 'No contact'}</p>
                   </div>
