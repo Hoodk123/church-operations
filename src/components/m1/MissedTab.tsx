@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarX2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import {
   fmtDate,
@@ -13,6 +12,14 @@ import {
   type M1Session,
   type M1Person,
 } from '@/components/m1/m1';
+import { fetchAttendance, fetchEnrollments } from '@/components/m1/m1';
+import {
+  createM1AbsenceReply,
+  createM1ReplyLink,
+  listM1AbsenceReplies,
+  listM1Messages,
+  logM1Message,
+} from '@/lib/api/m1';
 import { useShellMember } from '@/components/layout/shell';
 import { fillTemplate, ABSENCE_REASONS } from '@/lib/templates';
 import { fetchTemplate } from '@/components/classes/templates';
@@ -35,7 +42,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type SelectOption } from '@/lib/select-items';
 
-const MATERIALS_BUCKET = 'm1-materials';
 const REPLAY_PLACEHOLDER = '—';
 
 interface MissedTabProps {
@@ -66,7 +72,6 @@ function fmtClock(iso: string): string {
 
 export function MissedTab({ klass, onChanged }: MissedTabProps) {
   const member = useShellMember();
-  const supabase = createClient();
   const classId = klass.id;
 
   const [sessions, setSessions] = useState<M1Session[]>([]);
@@ -76,6 +81,7 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
   const [reasonCounts, setReasonCounts] = useState<Record<string, number>>({});
   const [replyTotal, setReplyTotal] = useState(0);
   const [latestReply, setLatestReply] = useState<ReplyInfo | null>(null);
+  const [replyRows, setReplyRows] = useState<Awaited<ReturnType<typeof listM1AbsenceReplies>>>([]);
   const [loading, setLoading] = useState(true);
   const [nonce, setNonce] = useState(0);
   const [sending, setSending] = useState<string | null>(null);
@@ -88,16 +94,20 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchClassSessions(supabase, classId).then((s) => {
-      if (cancelled) return;
-      setSessions(s);
-      const firstClosed = s.find((row) => row.closed);
-      setSelectedId((prev) => (prev && s.some((row) => row.id === prev && row.closed) ? prev : firstClosed?.id ?? null));
-    });
+    fetchClassSessions(classId)
+      .then((s) => {
+        if (cancelled) return;
+        setSessions(s);
+        const firstClosed = s.find((row) => row.closed);
+        setSelectedId((prev) =>
+          prev && s.some((row) => row.id === prev && row.closed) ? prev : firstClosed?.id ?? null
+        );
+      })
+      .catch((error) => toast.error(rlsErrorMessage(error)));
     return () => {
       cancelled = true;
     };
-  }, [supabase, classId, nonce]);
+  }, [classId, nonce]);
 
   useEffect(() => {
     fetchTemplate('m1_catch_up').then((t) => setTemplate(t?.body ?? ''));
@@ -111,44 +121,32 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
     let cancelled = false;
     setLoading(true);
     Promise.all([
-      supabase
-        .from('m1_attendance')
-        .select(
-          'person_id, status, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
-        )
-        .eq('session_id', selectedId)
-        .in('status', ['Absent', 'Excused']),
-      supabase
-        .from('m1_absence_replies')
-        .select('person_id, reason, note, created_at')
-        .eq('session_id', selectedId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('m1_message_log')
-        .select('person_id, sent_at')
-        .eq('class_id', classId)
-        .eq('purpose', 'catch_up')
-        .order('sent_at', { ascending: false }),
+      fetchAttendance(classId),
+      fetchEnrollments(classId),
+      Promise.all(sessions.map((session) => listM1Messages(session.id))),
     ])
-      .then(([att, replies, logs]) => {
+      .then(([attendance, enrollments, logGroups]) => {
         if (cancelled) return;
-        const personOf = (value: unknown): M1Person | null => {
-          if (Array.isArray(value)) return (value[0] as M1Person | undefined) ?? null;
-          return (value as M1Person | null) ?? null;
-        };
-        const replyByPerson = new Map<string, { reason: string; note: string | null; created_at: string }>();
-        for (const r of (replies.data ?? []) as ReplyInfo[]) {
-          if (!replyByPerson.has(r.person_id)) {
-            replyByPerson.set(r.person_id, { reason: r.reason, note: r.note, created_at: r.created_at });
-          }
-        }
+        const personById = new Map(enrollments.map((row) => [row.person_id, row.people]));
+        const replyByPerson = new Map<string, { reason: string; note: string | null; created_at: string }>(
+          replyRows
+            .filter((row) => row.sessionId === selectedId)
+            .map((row) => [row.personId, {
+              reason: row.reason,
+              note: row.note,
+              created_at: row.createdAt,
+            }])
+        );
         const sentByPerson = new Map<string, string>();
-        for (const l of (logs.data ?? []) as { person_id: string; sent_at: string }[]) {
-          if (!sentByPerson.has(l.person_id)) sentByPerson.set(l.person_id, l.sent_at);
+        const logs = logGroups.flat().filter((row) => row.purpose === 'catch_up')
+          .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+        for (const log of logs) {
+          if (!sentByPerson.has(log.personId)) sentByPerson.set(log.personId, log.sentAt);
         }
         const built: MissedRow[] = [];
-        for (const row of (att.data ?? []) as { person_id: string; status: string; people: unknown }[]) {
-          const person = personOf(row.people);
+        for (const row of attendance[selectedId] ?? []) {
+          if (row.status !== 'Absent' && row.status !== 'Excused') continue;
+          const person = personById.get(row.person_id);
           if (!person) continue;
           built.push({
             person,
@@ -167,110 +165,43 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
     return () => {
       cancelled = true;
     };
-  }, [supabase, classId, selectedId, nonce]);
+  }, [classId, selectedId, nonce, sessions, replyRows]);
 
   useEffect(() => {
-    const ids = sessions.map((s) => s.id);
-    if (ids.length === 0) {
-      setReasonCounts({});
-      setReplyTotal(0);
-      setLatestReply(null);
-      return;
-    }
     let cancelled = false;
-    supabase
-      .from('m1_absence_replies')
-      .select('person_id, reason, note, created_at, people(first_name, last_name)')
-      .in('session_id', ids)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
+    listM1AbsenceReplies(classId)
+      .then((replies) => {
         if (cancelled) return;
+        setReplyRows(replies);
         const counts: Record<string, number> = {};
         const list: ReplyInfo[] = [];
-        for (const r of (data ?? []) as {
-          person_id: string;
-          reason: string;
-          note: string | null;
-          created_at: string;
-          people: unknown;
-        }[]) {
-          counts[r.reason] = (counts[r.reason] ?? 0) + 1;
-          const person = Array.isArray(r.people) ? (r.people[0] as M1Person | undefined) : (r.people as M1Person | null);
+        for (const reply of replies) {
+          counts[reply.reason] = (counts[reply.reason] ?? 0) + 1;
           list.push({
-            person_id: r.person_id,
-            reason: r.reason,
-            note: r.note,
-            created_at: r.created_at,
-            name: person ? personName(person) : '',
+            person_id: reply.personId,
+            reason: reply.reason,
+            note: reply.note,
+            created_at: reply.createdAt,
+            name: personName({ first_name: reply.firstName, last_name: reply.lastName }),
           });
         }
         setReasonCounts(counts);
         setReplyTotal(list.length);
         setLatestReply(list[0] ?? null);
-      });
+      })
+      .catch((error) => toast.error(rlsErrorMessage(error)));
     return () => {
       cancelled = true;
     };
-  }, [supabase, sessions, nonce]);
+  }, [classId, nonce]);
 
   const active = useMemo(() => closed.find((s) => s.id === selectedId) ?? null, [closed, selectedId]);
-
-  async function getReplyToken(sessionId: string, personId: string): Promise<string | null> {
-    const { data: existing } = await supabase
-      .from('m1_reply_links')
-      .select('token')
-      .eq('session_id', sessionId)
-      .eq('person_id', personId)
-      .gt('expires_at', new Date().toISOString())
-      .is('used_at', null)
-      .maybeSingle();
-    if (existing?.token) return existing.token;
-    const token = window.crypto.randomUUID().replace(/-/g, '');
-    const { data, error } = await supabase
-      .from('m1_reply_links')
-      .insert({
-        token,
-        session_id: sessionId,
-        person_id: personId,
-        created_by: member?.id ?? null,
-        expires_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
-      })
-      .select('token')
-      .single();
-    if (error) {
-      if (error.code === '23505') {
-        const { data: again } = await supabase
-          .from('m1_reply_links')
-          .select('token')
-          .eq('session_id', sessionId)
-          .eq('person_id', personId)
-          .maybeSingle();
-        return again?.token ?? null;
-      }
-      return null;
-    }
-    return data?.token ?? null;
-  }
 
   async function sendCatchUp(row: MissedRow) {
     if (!active) return;
     setSending(row.person.id);
     try {
-      const token = await getReplyToken(active.id, row.person.id);
-      let materialsLink = '';
-      const { data: material } = await supabase
-        .from('m1_materials')
-        .select('storage_path')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (material?.storage_path) {
-        const { data: signed } = await supabase.storage
-          .from(MATERIALS_BUCKET)
-          .createSignedUrl(material.storage_path, 7 * 86_400);
-        materialsLink = signed?.signedUrl ?? '';
-      }
+      const links = await createM1ReplyLink(active.id, row.person.id);
       const nextDate = sessions.find((s) => s.day_number > active.day_number)?.session_date ?? '';
       const body = fillTemplate(template, {
         name: row.person.first_name,
@@ -279,9 +210,11 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
         date: fmtDate(active.session_date),
         time: fmtTime(active.start_time),
         summary: active.summary ?? '',
-        materials_link: materialsLink,
+        materials_link: links.materialsPath
+          ? new URL(links.materialsPath, window.location.origin).toString()
+          : '',
         next_date: nextDate ? fmtDate(nextDate) : '',
-        reply_link: token ? `${window.location.origin}/reply/${token}` : '',
+        reply_link: new URL(links.replyPath, window.location.origin).toString(),
         venue: venueLabel(klass.venue),
         volunteer: member?.full_name ?? '',
       });
@@ -306,17 +239,18 @@ export function MissedTab({ klass, onChanged }: MissedTabProps) {
         return;
       }
       window.open(href, '_blank', 'noopener');
-      await supabase.from('m1_message_log').insert({
-        class_id: classId,
-        session_id: active.id,
-        person_id: row.person.id,
+      await logM1Message({
+        classId,
+        sessionId: active.id,
+        personId: row.person.id,
         purpose: 'catch_up',
         channel,
-        sent_by: member?.id ?? null,
       });
       toast.success(`Catch-up ready for ${personName(row.person)}`);
       refresh();
       onChanged();
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
     } finally {
       setSending(null);
     }
@@ -544,10 +478,8 @@ interface RecordReasonDialogProps {
 }
 
 function RecordReasonDialog({ klass, session, rows, onClose, onSaved }: RecordReasonDialogProps) {
-  const member = useShellMember();
-  const supabase = createClient();
   const [personId, setPersonId] = useState('');
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState<(typeof ABSENCE_REASONS)[number] | ''>('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -560,19 +492,19 @@ function RecordReasonDialog({ klass, session, rows, onClose, onSaved }: RecordRe
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from('m1_absence_replies').insert({
-      session_id: session.id,
-      person_id: personId,
-      reason,
-      note: note.trim() || null,
-      source: 'Volunteer',
-      recorded_by: member?.id ?? null,
-    });
-    setSaving(false);
-    if (error) {
+    try {
+      await createM1AbsenceReply({
+        sessionId: session.id,
+        personId,
+        reason,
+        note: note.trim() || null,
+      });
+    } catch (error) {
+      setSaving(false);
       toast.error(rlsErrorMessage(error));
       return;
     }
+    setSaving(false);
     toast.success('Reason recorded');
     onSaved();
   }

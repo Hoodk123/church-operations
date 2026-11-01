@@ -31,12 +31,17 @@ export interface ApiOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   /** JSON body; omitted means no body (and no content-type header). */
   json?: unknown;
+  /** Multipart body; the browser sets the boundary and content type. */
+  formData?: FormData;
   query?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
 }
 
 /** Typed, same-origin API call; parses and returns the response body. */
-export async function api<T>(path: string, { method = "GET", json, query, signal }: ApiOptions = {}): Promise<T> {
+export async function api<T>(path: string, { method = "GET", json, formData, query, signal }: ApiOptions = {}): Promise<T> {
+  if (json !== undefined && formData !== undefined) {
+    throw new Error("Provide either JSON or FormData, not both");
+  }
   const url = new URL(path, window.location.origin);
   url.search = query
     ? new URLSearchParams(
@@ -57,7 +62,7 @@ export async function api<T>(path: string, { method = "GET", json, query, signal
     method,
     headers,
     credentials: "same-origin",
-    body: json === undefined ? undefined : JSON.stringify(json),
+    body: json !== undefined ? JSON.stringify(json) : formData,
     signal,
   });
 

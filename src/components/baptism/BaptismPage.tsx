@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { CalendarPlus, Droplets, Pencil, Send, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
+import { fetchEnrollments, fetchM1Classes } from '@/components/m1/m1';
+import { logM1Message } from '@/lib/api/m1';
 import { useShellMember } from '@/components/layout/shell';
 import { personName, fmtDate, fmtDateFull, fmtTime, venueLabel, nextSundayISO } from '@/components/m1/m1';
 import { fetchTemplate } from '@/components/classes/templates';
@@ -152,18 +154,15 @@ export default function BaptismPage() {
     setRegistrations((regRes.data ?? []) as unknown as Registration[]);
 
     if (rows.length > 0) {
-      const { data } = await supabase
-        .from('m1_enrollments')
-        .select('person_id, certificate_issued_at')
-        .in(
-          'person_id',
-          rows.map((r) => r.id)
-        )
-        .not('certificate_issued_at', 'is', null);
+      const classes = await fetchM1Classes();
+      const enrollmentGroups = await Promise.all(classes.map((klass) => fetchEnrollments(klass.id)));
+      const peopleIds = new Set(rows.map((row) => row.id));
       const map: Record<string, string> = {};
-      for (const row of (data ?? []) as { person_id: string; certificate_issued_at: string }[]) {
-        const prev = map[row.person_id];
-        if (!prev || prev < row.certificate_issued_at) map[row.person_id] = row.certificate_issued_at;
+      for (const enrollment of enrollmentGroups.flat()) {
+        const issuedAt = enrollment.certificate_issued_at;
+        if (!issuedAt || !peopleIds.has(enrollment.person_id)) continue;
+        const prev = map[enrollment.person_id];
+        if (!prev || prev < issuedAt) map[enrollment.person_id] = issuedAt;
       }
       setCompleted(map);
     } else {
@@ -968,7 +967,6 @@ function SendRemindersDialog({
   onClose: () => void;
 }) {
   const member = useShellMember();
-  const supabase = createClient();
   const [template, setTemplate] = useState<{ name: string; body: string } | null>(null);
   const [sent, setSent] = useState<Record<string, boolean>>({});
   const [sending, setSending] = useState<string | null>(null);
@@ -1006,16 +1004,22 @@ function SendRemindersDialog({
     }
     window.open(href, '_blank', 'noopener');
     setSending(reg.id);
-    const { error } = await supabase.from('m1_message_log').insert({
-      person_id: reg.person_id,
-      class_id: null,
-      purpose: 'baptism',
-      channel,
-      sent_by: member?.id ?? null,
-    });
+    let failed = false;
+    try {
+      await logM1Message({
+        personId: reg.person_id,
+        classId: null,
+        sessionId: null,
+        purpose: 'baptism',
+        channel,
+      });
+    } catch (error) {
+      failed = true;
+      toast.error(rlsErrorMessage(error));
+    }
     setSending(null);
     setSent((prev) => ({ ...prev, [reg.id]: true }));
-    if (error) {
+    if (failed) {
       toast.info(`${personName(person)}: opened in ${channel}`);
       return;
     }

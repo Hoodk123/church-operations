@@ -45,6 +45,7 @@ const EXPECTED: Record<Role, readonly Action[]> = {
     "m1:read",
     "m1:tick",
     "m1:enroll",
+    "m1:message-write",
     "baptism:read",
     "metrics:read",
     "templates:read",
@@ -64,6 +65,12 @@ const EXPECTED: Record<Role, readonly Action[]> = {
     "m1:read",
     "m1:tick",
     "m1:enroll",
+    "m1:session-summary",
+    "m1:certificate-override",
+    "m1:absence-reply-write",
+    "m1:materials-write",
+    "m1:message-write",
+    "m1:reply-link-write",
     "baptism:write",
     "baptism:read",
     "metrics:read",
@@ -81,6 +88,11 @@ const EXPECTED: Record<Role, readonly Action[]> = {
     "checkin:read",
     "attendance:read",
     "m1:read",
+    "m1:certificate-override",
+    "m1:absence-reply-write",
+    "m1:materials-write",
+    "m1:message-write",
+    "m1:reply-link-write",
     "baptism:read",
     "metrics:read",
   ],
@@ -211,6 +223,42 @@ const STEPS: ReadonlyArray<StepSpec & { action: Action }> = [
     method: "PATCH",
     url: () => `/api/m1/sessions/${m1SessionId}/attendance`,
     body: () => ({ personId, status: "Present" }),
+  },
+  {
+    action: "m1:session-summary",
+    method: "PATCH",
+    url: () => `/api/m1/sessions/${fixtureUuid()}/summary`,
+    body: () => ({ summary: "Fake session summary" }),
+  },
+  {
+    action: "m1:certificate-override",
+    method: "PATCH",
+    url: () => `/api/m1/enrollments/${fixtureUuid()}/certificate-override`,
+    body: () => ({ note: "Fake override" }),
+  },
+  {
+    action: "m1:materials-write",
+    method: "POST",
+    url: () => `/api/m1/classes/${m1ClassId}/materials`,
+    body: () => ({}),
+  },
+  {
+    action: "m1:message-write",
+    method: "POST",
+    url: () => "/api/m1/messages",
+    body: () => ({}),
+  },
+  {
+    action: "m1:reply-link-write",
+    method: "POST",
+    url: () => `/api/m1/sessions/${fixtureUuid()}/reply-links`,
+    body: () => ({}),
+  },
+  {
+    action: "m1:absence-reply-write",
+    method: "POST",
+    url: () => "/api/m1/absence-replies",
+    body: () => ({}),
   },
   {
     action: "m1:certificates",
@@ -431,4 +479,3 @@ test("every role x every exposed action obeys the matrix over HTTP", async () =>
   expect(createdPersonIds.length).toBeGreaterThanOrEqual(1);
   expect(m1EnrollmentId, "m1 enrollment fixture captured").toBeTruthy();
 });
-

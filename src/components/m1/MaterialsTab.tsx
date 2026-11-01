@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Download, FileText, Link2, Trash2, Upload } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import {
@@ -12,6 +11,14 @@ import {
   type M1Person,
   type M1Session,
 } from '@/components/m1/m1';
+import { fetchEnrollments, fetchAttendance } from '@/components/m1/m1';
+import {
+  deleteM1Material,
+  getM1MaterialUrl,
+  listM1Materials,
+  logM1Message,
+  uploadM1Material,
+} from '@/lib/api/m1';
 import { fillTemplate } from '@/lib/templates';
 import { fetchTemplate } from '@/components/classes/templates';
 import { pickChannel, messageHref, type Channel } from '@/lib/messaging';
@@ -24,7 +31,6 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type SelectOption } from '@/lib/select-items';
 
-export const MATERIALS_BUCKET = 'm1-materials';
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED = [
   'application/pdf',
@@ -61,7 +67,6 @@ interface MaterialMeta {
   id: string;
   session_id: string | null;
   title: string;
-  storage_path: string;
   mime_type: string | null;
   size_bytes: number | null;
   created_at: string;
@@ -70,7 +75,6 @@ interface MaterialMeta {
 
 export function MaterialsTab({ klass, onChanged }: MaterialsTabProps) {
   const member = useShellMember();
-  const supabase = createClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const classId = klass.id;
 
@@ -88,44 +92,24 @@ export function MaterialsTab({ klass, onChanged }: MaterialsTabProps) {
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      supabase
-        .from('m1_materials')
-        .select('id, session_id, title, storage_path, mime_type, size_bytes, created_at, team_members(full_name)')
-        .eq('class_id', classId)
-        .order('created_at', { ascending: false }),
-      fetchClassSessions(supabase, classId),
+      listM1Materials(classId),
+      fetchClassSessions(classId),
     ])
       .then(([materials, s]) => {
-        const list = (materials.data ?? []) as unknown as {
-          id: string;
-          session_id: string | null;
-          title: string;
-          storage_path: string;
-          mime_type: string | null;
-          size_bytes: number | null;
-          created_at: string;
-          team_members: { full_name: string | null } | { full_name: string | null }[] | null;
-        }[];
-        setRows(
-          list.map((row) => {
-            const team = Array.isArray(row.team_members) ? row.team_members[0] : row.team_members;
-            return {
-              id: row.id,
-              session_id: row.session_id,
-              title: row.title,
-              storage_path: row.storage_path,
-              mime_type: row.mime_type,
-              size_bytes: row.size_bytes,
-              created_at: row.created_at,
-              uploader: team?.full_name ?? null,
-            };
-          })
-        );
+        setRows(materials.map((row) => ({
+          id: row.id,
+          session_id: row.sessionId,
+          title: row.title,
+          mime_type: row.mimeType,
+          size_bytes: row.sizeBytes,
+          created_at: row.createdAt,
+          uploader: row.uploader,
+        })));
         setSessions(s);
       })
       .catch((err) => toast.error(rlsErrorMessage(err)))
       .finally(() => setLoading(false));
-  }, [supabase, classId]);
+  }, [classId]);
 
   useEffect(() => {
     load();
@@ -151,27 +135,11 @@ export function MaterialsTab({ klass, onChanged }: MaterialsTabProps) {
     setUploading(true);
     let uploaded = 0;
     for (const file of list) {
-      const path = `${classId}/${Date.now()}-${file.name.replace(/[^\w.-]/g, '_')}`;
-      const { error: uploadErr } = await supabase.storage
-        .from(MATERIALS_BUCKET)
-        .upload(path, file, { cacheControl: '3600', upsert: false });
-      if (uploadErr) {
-        toast.error(rlsErrorMessage(uploadErr));
-        continue;
-      }
-      const { error: insertErr } = await supabase.from('m1_materials').insert({
-        class_id: classId,
-        title: file.name,
-        storage_path: path,
-        mime_type: file.type || null,
-        size_bytes: file.size,
-        uploaded_by: member?.id ?? null,
-      });
-      if (insertErr) {
-        toast.error(rlsErrorMessage(insertErr));
-        await supabase.storage.from(MATERIALS_BUCKET).remove([path]);
-      } else {
+      try {
+        await uploadM1Material(classId, file);
         uploaded += 1;
+      } catch (error) {
+        toast.error(`${file.name}: ${rlsErrorMessage(error)}`);
       }
     }
     setUploading(false);
@@ -182,22 +150,22 @@ export function MaterialsTab({ klass, onChanged }: MaterialsTabProps) {
     }
   }
 
-  async function signedUrl(path: string): Promise<string | null> {
-    const { data, error } = await supabase.storage.from(MATERIALS_BUCKET).createSignedUrl(path, 7 * 86_400);
-    if (error || !data?.signedUrl) {
+  async function signedUrl(id: string): Promise<string | null> {
+    try {
+      return await getM1MaterialUrl(id);
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       return null;
     }
-    return data.signedUrl;
   }
 
   async function download(row: MaterialMeta) {
-    const url = await signedUrl(row.storage_path);
+    const url = await signedUrl(row.id);
     if (url) window.open(url, '_blank', 'noopener');
   }
 
   async function copyLink(row: MaterialMeta) {
-    const url = await signedUrl(row.storage_path);
+    const url = await signedUrl(row.id);
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
@@ -209,18 +177,14 @@ export function MaterialsTab({ klass, onChanged }: MaterialsTabProps) {
 
   async function remove(row: MaterialMeta) {
     setDeleting(row.id);
-    const { error: storageErr } = await supabase.storage.from(MATERIALS_BUCKET).remove([row.storage_path]);
-    if (storageErr) {
+    try {
+      await deleteM1Material(row.id);
+    } catch (error) {
       setDeleting(null);
-      toast.error(rlsErrorMessage(storageErr));
-      return;
-    }
-    const { error } = await supabase.from('m1_materials').delete().eq('id', row.id);
-    setDeleting(null);
-    if (error) {
       toast.error(rlsErrorMessage(error));
       return;
     }
+    setDeleting(null);
     toast.success('File removed');
     load();
     onChanged();
@@ -339,12 +303,11 @@ interface ShareFilesCardProps {
   klass: M1Class;
   rows: MaterialMeta[];
   sessions: M1Session[];
-  onSigned: (path: string) => Promise<string | null>;
+  onSigned: (id: string) => Promise<string | null>;
 }
 
 function ShareFilesCard({ klass, rows, sessions, onSigned }: ShareFilesCardProps) {
   const member = useShellMember();
-  const supabase = createClient();
   const classId = klass.id;
 
   const [audience, setAudience] = useState('everyone');
@@ -375,29 +338,18 @@ function ShareFilesCard({ klass, rows, sessions, onSigned }: ShareFilesCardProps
   }
 
   async function recipients(): Promise<M1Person[]> {
+    const enrollments = await fetchEnrollments(classId);
     if (audience === 'everyone') {
-      const { data } = await supabase
-        .from('m1_enrollments')
-        .select(
-          'people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
-        )
-        .eq('class_id', classId)
-        .eq('status', 'Enrolled');
-      return ((data ?? []) as unknown as { people: M1Person | M1Person[] }[]).map((row) =>
-        Array.isArray(row.people) ? row.people[0] : row.people
-      ).filter((p): p is M1Person => !!p);
+      return enrollments.filter((row) => row.status === 'Enrolled').map((row) => row.people);
     }
     const sessionId = audience.split(':')[1];
-    const { data } = await supabase
-      .from('m1_attendance')
-      .select(
-        'status, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
-      )
-      .eq('session_id', sessionId)
-      .in('status', ['Absent', 'Excused']);
-    return ((data ?? []) as unknown as { people: M1Person | M1Person[] }[]).map((row) =>
-      Array.isArray(row.people) ? row.people[0] : row.people
-    ).filter((p): p is M1Person => !!p);
+    if (!sessionId) return [];
+    const attendance = await fetchAttendance(classId);
+    const personById = new Map(enrollments.map((row) => [row.person_id, row.people]));
+    return (attendance[sessionId] ?? [])
+      .filter((row) => row.status === 'Absent' || row.status === 'Excused')
+      .map((row) => personById.get(row.person_id))
+      .filter((person): person is M1Person => person !== undefined);
   }
 
   async function buildQueue() {
@@ -409,7 +361,7 @@ function ShareFilesCard({ klass, rows, sessions, onSigned }: ShareFilesCardProps
     setBuilding(true);
     const links: string[] = [];
     for (const file of files) {
-      const url = await onSigned(file.storage_path);
+      const url = await onSigned(file.id);
       if (url) links.push(url);
     }
     if (links.length === 0) {
@@ -449,13 +401,17 @@ function ShareFilesCard({ klass, rows, sessions, onSigned }: ShareFilesCardProps
   async function open(row: ShareRow) {
     window.open(row.href, '_blank', 'noopener');
     setQueue((prev) => prev.map((r) => (r.person.id === row.person.id ? { ...r, opened: true } : r)));
-    await supabase.from('m1_message_log').insert({
-      class_id: classId,
-      person_id: row.person.id,
-      purpose: 'materials',
-      channel: row.channel,
-      sent_by: member?.id ?? null,
-    });
+    try {
+      await logM1Message({
+        classId,
+        personId: row.person.id,
+        sessionId: null,
+        purpose: 'materials',
+        channel: row.channel,
+      });
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
+    }
   }
 
   const whatsappCount = queue.filter((r) => r.channel === 'WhatsApp').length;

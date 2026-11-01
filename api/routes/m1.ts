@@ -14,7 +14,23 @@ import { rm } from "node:fs/promises";
 import path from "node:path";
 import { audit } from "../audit.js";
 import { currentMember, day } from "../lib/route-helpers.js";
-import { humanize } from "../lib/enums.js";
+import {
+  asAgeGroup,
+  asCategory,
+  asContactPreference,
+  asGender,
+  humanize,
+} from "../lib/enums.js";
+import { normalizeRwandaPhone } from "../lib/phone.js";
+import {
+  m1AbsenceReplyCreateSchema,
+  m1CertificateIssueSchema,
+  m1CertificateOverrideSchema,
+  m1PhoneMatchSchema,
+  m1SearchSchema,
+  m1SessionSummarySchema,
+  m1WalkInSchema,
+} from "../schemas/m1.js";
 
 type DB = import("../db.js").ApiPrisma;
 
@@ -83,6 +99,26 @@ const PERSON_SELECT = {
   needsBaptism: true,
   needsPastor: true,
 } as const satisfies Prisma.PeopleSelect;
+
+const PERSON_SEARCH_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
+  ageGroup: true,
+  location: true,
+} as const satisfies Prisma.PeopleSelect;
+
+function serializePersonSearch(row: Prisma.PeopleGetPayload<{ select: typeof PERSON_SEARCH_SELECT }>) {
+  return {
+    id: row.id,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    phone: row.phone,
+    ageGroup: humanize("AgeGroup", row.ageGroup),
+    location: row.location,
+  };
+}
 
 /** Best-effort removal of the class's material files (volume, not web root). */
 async function removeClassFiles(uploadDir: string, classId: string): Promise<void> {
@@ -555,11 +591,65 @@ export async function registerM1Routes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  app.patch<{ Params: { id: string } }>(
+    "/api/m1/sessions/:id/summary",
+    { config: { access: "auth", action: "m1:session-summary" } },
+    async (req, reply) => {
+      const param = idParam.safeParse(req.params.id);
+      if (!param.success) return reply.code(400).send({ error: "invalid session id" });
+      const parsed = m1SessionSummarySchema.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid summary body" });
+      const session = await req.prisma.m1Sessions.findUnique({
+        where: { id: param.data },
+        select: { id: true },
+      });
+      if (!session) return reply.code(404).send({ error: "session not found" });
+      await req.prisma.m1Sessions.update({
+        where: { id: session.id },
+        data: { summary: parsed.data.summary?.trim() || null },
+      });
+      await audit(req.prisma, {
+        userId: req.user!.id,
+        action: "m1.session_summary_edit",
+        entity: "m1_sessions",
+        entityId: session.id,
+        message: "session summary updated",
+      });
+      return { saved: true };
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/api/m1/enrollments/:id/certificate-override",
+    { config: { access: "auth", action: "m1:certificate-override" } },
+    async (req, reply) => {
+      const param = idParam.safeParse(req.params.id);
+      if (!param.success) return reply.code(400).send({ error: "invalid enrollment id" });
+      const parsed = m1CertificateOverrideSchema.safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid certificate override body" });
+      const enrollment = await req.prisma.m1Enrollments.findUnique({
+        where: { id: param.data },
+        select: { id: true },
+      });
+      if (!enrollment) return reply.code(404).send({ error: "enrollment not found" });
+      await req.prisma.m1Enrollments.update({
+        where: { id: enrollment.id },
+        data: { certificateOverrideNote: parsed.data.note.trim() || null },
+      });
+      await audit(req.prisma, {
+        userId: req.user!.id,
+        action: "m1.certificate_override",
+        entity: "m1_enrollments",
+        entityId: enrollment.id,
+        message: "certificate eligibility override updated",
+      });
+      return { saved: true };
+    },
+  );
+
   // ---- Issue certificates (port of public.issue_m1_certificates) ---------------
   app.post("/api/m1/certificates", { config: { access: "auth", action: "m1:certificates" } }, async (req, reply) => {
-    const parsed = z
-      .object({ enrollmentIds: z.array(z.uuid()).min(1).max(100) })
-      .safeParse(req.body);
+    const parsed = m1CertificateIssueSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "invalid certificates body" });
     }
@@ -640,5 +730,125 @@ export async function registerM1Routes(app: FastifyInstance): Promise<void> {
       orderBy: [{ firstName: "asc" }],
     });
     return { items: rows.map(serializePerson) };
+  });
+
+  app.post("/api/m1/people/search", { config: { access: "auth", action: "m1:read" } }, async (req, reply) => {
+    const parsed = m1SearchSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid people search" });
+    const query = parsed.data.query;
+    const rows = await req.prisma.people.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: query, mode: "insensitive" } },
+          { lastName: { contains: query, mode: "insensitive" } },
+          { phone: { contains: query } },
+        ],
+      },
+      select: PERSON_SEARCH_SELECT,
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+      take: 20,
+    });
+    return { items: rows.map(serializePersonSearch) };
+  });
+
+  app.post("/api/m1/people/phone-match", { config: { access: "auth", action: "m1:enroll" } }, async (req, reply) => {
+    const parsed = m1PhoneMatchSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid phone search" });
+    const matches = await req.prisma.$queryRaw<Array<{ id: string }>>`
+      select id
+        from public.people
+       where regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') like '%' || ${parsed.data.suffix}
+       order by first_name, last_name
+       limit 5
+    `;
+    const rows = await req.prisma.people.findMany({
+      where: { id: { in: matches.map((row) => row.id) } },
+      select: PERSON_SEARCH_SELECT,
+    });
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return { items: matches.flatMap(({ id }) => {
+      const row = byId.get(id);
+      return row ? [serializePersonSearch(row)] : [];
+    }) };
+  });
+
+  app.post("/api/m1/people", { config: { access: "auth", action: "m1:enroll" } }, async (req, reply) => {
+    const parsed = m1WalkInSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid walk-in person" });
+    const input = parsed.data;
+    const phone = normalizeRwandaPhone(input.phone);
+    if (!phone) return reply.code(400).send({ error: "invalid phone number" });
+    const duplicate = await req.prisma.people.findFirst({ where: { phone }, select: { id: true } });
+    if (duplicate) return reply.code(409).send({ error: "phone already registered" });
+    const member = await currentMember(req.prisma, req.user!);
+    const person = await req.prisma.people.create({
+      data: {
+        firstName: input.firstName,
+        lastName: input.lastName,
+        gender: asGender(input.gender ?? "Male"),
+        ageGroup: input.ageGroup ? asAgeGroup(input.ageGroup) : null,
+        phone,
+        email: input.email,
+        location: input.location,
+        addressDetails: input.addressDetails,
+        contactPreference: asContactPreference(input.contactPreference),
+        category: asCategory("M1 Class"),
+        needsM1: true,
+        registeredBy: member?.id ?? null,
+      },
+      select: PERSON_SELECT,
+    });
+    await audit(req.prisma, {
+      userId: req.user!.id,
+      action: "m1.walk_in_person_create",
+      entity: "people",
+      entityId: person.id,
+      message: "walk-in person created",
+    });
+    return reply.code(201).send({ id: person.id });
+  });
+
+  app.patch<{ Params: { id: string } }>(
+    "/api/m1/people/:id/needs",
+    { config: { access: "auth", action: "m1:enroll" } },
+    async (req, reply) => {
+      const param = idParam.safeParse(req.params.id);
+      if (!param.success) return reply.code(400).send({ error: "invalid person id" });
+      const parsed = z.object({
+        needsM1: z.boolean().optional(),
+        needsBaptism: z.boolean().optional(),
+        needsPastor: z.boolean().optional(),
+      }).refine((value) => Object.keys(value).length > 0).safeParse(req.body);
+      if (!parsed.success) return reply.code(400).send({ error: "invalid needs body" });
+      const person = await req.prisma.people.findUnique({ where: { id: param.data }, select: { id: true } });
+      if (!person) return reply.code(404).send({ error: "person not found" });
+      await req.prisma.people.update({ where: { id: person.id }, data: parsed.data });
+      return { saved: true };
+    },
+  );
+
+  app.post("/api/m1/absence-replies", { config: { access: "auth", action: "m1:absence-reply-write" } }, async (req, reply) => {
+    const parsed = m1AbsenceReplyCreateSchema.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: "invalid absence reply" });
+    const member = await currentMember(req.prisma, req.user!);
+    const created = await req.prisma.m1AbsenceReplies.create({
+      data: {
+        sessionId: parsed.data.sessionId,
+        personId: parsed.data.personId,
+        reason: parsed.data.reason,
+        note: parsed.data.note?.trim() || null,
+        source: "Volunteer",
+        recordedBy: member?.id ?? null,
+      },
+      select: { id: true },
+    });
+    await audit(req.prisma, {
+      userId: req.user!.id,
+      action: "m1.absence_reply_record",
+      entity: "m1_absence_replies",
+      entityId: created.id,
+      message: "absence reason recorded",
+    });
+    return reply.code(201).send({ id: created.id });
   });
 }

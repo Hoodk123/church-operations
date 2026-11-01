@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Check, Search, Users, X } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
+import {
+  closeM1Session,
+  saveM1SessionSummary,
+  updateM1Attendance,
+} from '@/lib/api/m1';
 import { cn } from '@/lib/utils';
 import {
   fmtDate,
@@ -18,7 +22,6 @@ import {
   type M1Attendance,
   type M1Person,
 } from '@/components/m1/m1';
-import { useShellMember } from '@/components/layout/shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +43,8 @@ import PersonSheet from '@/components/m1/PersonSheet';
 interface EnrolledTabProps {
   klass: M1Class;
   isAdmin: boolean;
-  isLeader: boolean;
+  canTick: boolean;
+  canManageDay: boolean;
   onChanged: () => void;
 }
 
@@ -53,9 +57,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'complete', label: 'Complete' },
 ];
 
-export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: EnrolledTabProps) {
-  const member = useShellMember();
-  const supabase = createClient();
+export default function EnrolledTab({ klass, isAdmin, canTick, canManageDay, onChanged }: EnrolledTabProps) {
   const classId = klass.id;
   const requiredDays = klass.required_days;
 
@@ -67,7 +69,11 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [closeTarget, setCloseTarget] = useState<M1Session | null>(null);
-  const [unlockTarget, setUnlockTarget] = useState<{ person: M1Person; session: M1Session; next: string } | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<{
+    person: M1Person;
+    session: M1Session;
+    next: 'Present' | 'Absent';
+  } | null>(null);
   const [personSheet, setPersonSheet] = useState<M1Person | null>(null);
 
   const attendanceRef = useRef<M1Attendance[]>([]);
@@ -78,9 +84,9 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
   const reload = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetchClassSessions(supabase, classId),
-      fetchEnrollments(supabase, classId),
-      fetchAttendance(supabase, classId),
+      fetchClassSessions(classId),
+      fetchEnrollments(classId),
+      fetchAttendance(classId),
     ])
       .then(([s, e, a]) => {
         setSessions(s);
@@ -94,7 +100,7 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
       })
       .catch((err) => toast.error(rlsErrorMessage(err)))
       .finally(() => setLoading(false));
-  }, [supabase, classId]);
+  }, [classId]);
 
   useEffect(() => {
     reload();
@@ -139,7 +145,12 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
     return attendanceRef.current.find((r) => r.session_id === sessionId && r.person_id === personId);
   }
 
-  async function applyRow(person: M1Person, session: M1Session, nextStatus: string, withUndo = true) {
+  async function applyRow(
+    person: M1Person,
+    session: M1Session,
+    nextStatus: 'Present' | 'Absent' | 'Excused',
+    withUndo = true
+  ) {
     const existing = rowFor(session.id, person.id);
     const prev = existing?.status ?? null;
     const tempId = existing?.id ?? `tmp-${session.id}-${person.id}`;
@@ -149,26 +160,17 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
         : [...rows, { id: tempId, session_id: session.id, person_id: person.id, status: nextStatus }]
     );
 
-    if (existing) {
-      const { error } = await supabase.from('m1_attendance').update({ status: nextStatus }).eq('id', existing.id);
-      if (error) {
-        setAttendance((rows) => rows.map((r) => (r.id === existing.id ? { ...r, status: prev ?? 'Absent' } : r)));
-        toast.error(rlsErrorMessage(error));
-        return;
-      }
-    } else {
-      const { data, error } = await supabase
-        .from('m1_attendance')
-        .insert({ session_id: session.id, person_id: person.id, status: nextStatus, marked_by: member?.id ?? '' })
-        .select('id')
-        .single();
-      if (error) {
-        setAttendance((rows) => rows.filter((r) => r.id !== tempId));
-        toast.error(rlsErrorMessage(error));
-        return;
-      }
-      const newId = (data as { id: string } | null)?.id;
-      if (newId) setAttendance((rows) => rows.map((r) => (r.id === tempId ? { ...r, id: newId } : r)));
+    try {
+      const saved = await updateM1Attendance(session.id, { personId: person.id, status: nextStatus });
+      if (saved.id) setAttendance((rows) => rows.map((r) => (r.id === tempId ? { ...r, id: saved.id! } : r)));
+    } catch (error) {
+      setAttendance((rows) =>
+        existing
+          ? rows.map((r) => (r.id === existing.id ? { ...r, status: prev ?? 'Absent' } : r))
+          : rows.filter((r) => r.id !== tempId)
+      );
+      toast.error(rlsErrorMessage(error));
+      return;
     }
 
     if (!withUndo) return;
@@ -187,16 +189,18 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
     const existing = rowFor(session.id, person.id);
     if (!existing) return;
     setAttendance((rows) => rows.filter((r) => r.id !== existing.id));
-    const { error } = await supabase.from('m1_attendance').delete().eq('id', existing.id);
-    if (error) {
+    try {
+      await updateM1Attendance(session.id, { personId: person.id, status: null });
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       reload();
     }
   }
 
   async function closeDay(session: M1Session) {
-    const { error } = await supabase.rpc('close_m1_session', { session_id: session.id });
-    if (error) {
+    try {
+      await closeM1Session(session.id);
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       return;
     }
@@ -208,11 +212,9 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
 
   async function saveSummary(text: string) {
     if (!activeSession) return;
-    const { error } = await supabase
-      .from('m1_sessions')
-      .update({ summary: text })
-      .eq('id', activeSession.id);
-    if (error) {
+    try {
+      await saveM1SessionSummary(activeSession.id, text);
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       return;
     }
@@ -320,7 +322,7 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
                               ? 'Today'
                               : fmtDate(session.session_date)}
                         </small>
-                        {isActive && isLeader && (
+                        {isActive && canManageDay && (
                           <Button
                             size="xs"
                             variant="outline"
@@ -389,7 +391,8 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
                       {sessions.map((session) => {
                         const row = attendanceBySession[session.id]?.[entry.person_id];
                         const isActive = session.id === activeSession?.id && !session.closed;
-                        const mode: TickMode = isActive ? 'editable' : session.closed ? 'locked' : 'na';
+                        const canEdit = isActive && canTick;
+                        const mode: TickMode = canEdit ? 'editable' : session.closed ? 'locked' : 'na';
                         const next = row?.status === 'Present' ? 'Absent' : 'Present';
                         return (
                           <td
@@ -400,7 +403,7 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
                               status={row?.status ?? null}
                               mode={mode}
                               onToggle={
-                                isActive
+                                canEdit
                                   ? () => void applyRow(entry.people, session, next)
                                   : session.closed && isAdmin
                                     ? () => setUnlockTarget({ person: entry.people, session, next })
@@ -430,7 +433,7 @@ export default function EnrolledTab({ klass, isAdmin, isLeader, onChanged }: Enr
         </div>
       )}
 
-      {isLeader && activeSession && (
+      {canManageDay && activeSession && (
         <details className="rounded-xl border bg-card">
           <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none">
             Day {activeSession.day_number} summary

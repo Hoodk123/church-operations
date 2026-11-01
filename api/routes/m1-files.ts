@@ -48,7 +48,7 @@ export async function registerM1FileRoutes(app: FastifyInstance): Promise<void> 
 
   app.post<{ Params: { id: string } }>(
     "/api/m1/classes/:id/materials",
-    { config: { access: "auth", action: "m1:enroll" } },
+    { config: { access: "auth", action: "m1:materials-write" } },
     async (req, reply) => {
       const param = idParam.safeParse(req.params.id);
       if (!param.success) return reply.code(400).send({ error: "invalid class id" });

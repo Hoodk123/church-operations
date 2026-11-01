@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Phone, MessageCircle, Mail, Smartphone, GraduationCap } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useIsMobile } from '@/lib/use-is-mobile';
 import { useShellMember } from '@/components/layout/shell';
@@ -17,6 +16,13 @@ import {
   type M1Person,
   type M1Session,
 } from '@/components/m1/m1';
+import { fetchEnrollments } from '@/components/m1/m1';
+import {
+  getM1PersonMessages,
+  listM1Attendance,
+  logM1Message,
+  updateM1PersonNeeds,
+} from '@/lib/api/m1';
 import { availableChannels, messageHref, pickChannel, type Channel } from '@/lib/messaging';
 import { fillTemplate } from '@/lib/templates';
 import { fetchTemplate } from '@/components/classes/templates';
@@ -53,7 +59,9 @@ interface PersonSheetProps {
 
 type SendChannel = Exclude<Channel, 'Call'>;
 
-const TEMPLATE_PURPOSES: { purpose: string; label: string; logPurpose: string }[] = [
+type MessagePurpose = 'reminder' | 'catch_up' | 'materials' | 'certificate' | 'baptism' | 'other';
+
+const TEMPLATE_PURPOSES: { purpose: string; label: string; logPurpose: MessagePurpose }[] = [
   { purpose: 'm1_reminder', label: 'Class reminder', logPurpose: 'reminder' },
   { purpose: 'm1_catch_up', label: 'Missed catch-up', logPurpose: 'catch_up' },
   { purpose: 'm1_materials', label: 'Notes', logPurpose: 'materials' },
@@ -86,7 +94,6 @@ export default function PersonSheet({
 }: PersonSheetProps) {
   const isMobile = useIsMobile();
   const member = useShellMember();
-  const supabase = createClient();
 
   const [sessions, setSessions] = useState<M1Session[]>([]);
   const [attendance, setAttendance] = useState<Record<string, string>>({});
@@ -111,15 +118,10 @@ export default function PersonSheet({
     setNeeds({ m1: person.needs_m1, baptism: person.needs_baptism, pastor: person.needs_pastor });
 
     Promise.all([
-      fetchClassSessions(supabase, klass.id),
+      fetchClassSessions(klass.id),
       Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(t.purpose))),
-      supabase
-        .from('m1_enrollments')
-        .select('status, certificate_no')
-        .eq('class_id', klass.id)
-        .eq('person_id', personId)
-        .maybeSingle(),
-    ]).then(async ([s, tpls, enrollment]) => {
+      fetchEnrollments(klass.id),
+    ]).then(async ([s, tpls, enrollments]) => {
       setSessions(s);
       setTemplates(
         TEMPLATE_PURPOSES.map((t, i) => ({
@@ -128,53 +130,34 @@ export default function PersonSheet({
           body: tpls[i]?.body ?? '',
         })).filter((t) => t.body)
       );
-      setStatus(enrollment.data?.status ?? null);
-      setCertNo(enrollment.data?.certificate_no ?? null);
+      const enrollment = enrollments.find((row) => row.person_id === personId);
+      setStatus(enrollment?.status ?? null);
+      setCertNo(enrollment?.certificate_no ?? null);
 
       const sessionIds = s.map((x) => x.id);
       if (sessionIds.length === 0) return;
 
       const [att, log] = await Promise.all([
-        supabase
-          .from('m1_attendance')
-          .select('session_id, status')
-          .eq('person_id', personId)
-          .in('session_id', sessionIds),
-        supabase
-          .from('m1_message_log')
-          .select('purpose, channel, created_at, sent_by')
-          .eq('person_id', personId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        listM1Attendance(klass.id),
+        getM1PersonMessages(personId),
       ]);
 
       const next: Record<string, string> = {};
-      for (const row of (att.data ?? []) as { session_id: string; status: string }[]) {
-        next[row.session_id] = row.status;
+      for (const row of att) {
+        if (row.personId === personId && sessionIds.includes(row.sessionId)) next[row.sessionId] = row.status;
       }
       setAttendance(next);
 
-      if (log.data) {
-        let sender: string | null = null;
-        if (log.data.sent_by) {
-          const { data: tm } = await supabase
-            .from('team_members')
-            .select('full_name')
-            .eq('id', log.data.sent_by)
-            .maybeSingle();
-          sender = tm?.full_name ?? null;
-        }
+      if (log[0]) {
         setLastMessage({
-          verb: MESSAGE_VERBS[log.data.purpose] ?? 'sent a message',
-          channel: log.data.channel,
-          date: fmtDate(log.data.created_at),
-          sender,
+          verb: MESSAGE_VERBS[log[0].purpose] ?? 'sent a message',
+          channel: log[0].channel,
+          date: fmtDate(log[0].sentAt),
+          sender: log[0].senderName ?? null,
         });
       }
-    }).catch(() => {}).finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, personId, klass.id, supabase]);
+    }).catch((error) => toast.error(rlsErrorMessage(error))).finally(() => setLoading(false));
+  }, [open, personId, klass.id, person]);
 
   const activeSession = useMemo(
     () => sessions.find((s) => !s.closed) ?? sessions[sessions.length - 1] ?? null,
@@ -210,22 +193,23 @@ export default function PersonSheet({
 
   const draftBody = currentTemplate ? fillTemplate(currentTemplate.body, valuesFor(currentTemplate.body)) : '';
 
-  async function openAndLog(channel: Channel, body: string, logPurpose: string, subject?: string) {
+  async function openAndLog(channel: Channel, body: string, logPurpose: MessagePurpose, subject?: string) {
     const href = messageHref(channel, person!, { subject, body });
     if (!href) {
       toast.error(`No ${channel} contact on file`);
       return;
     }
     window.open(href, '_blank', 'noopener');
-    const { error } = await supabase.from('m1_message_log').insert({
-      person_id: person!.id,
-      class_id: klass.id,
-      session_id: activeSession?.id ?? null,
-      purpose: logPurpose,
-      channel,
-      sent_by: member?.id ?? null,
-    });
-    if (error) {
+    try {
+      await logM1Message({
+        personId: person!.id,
+        classId: klass.id,
+        sessionId: activeSession?.id ?? null,
+        purpose: logPurpose,
+        channel,
+      });
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
       toast.info(`${personName(person!)}: opened in ${channel}`);
       return;
     }
@@ -255,8 +239,12 @@ export default function PersonSheet({
           ? { ...prev, baptism: value }
           : { ...prev, pastor: value }
     );
-    const { error } = await supabase.from('people').update({ [field]: value }).eq('id', personId!);
-    if (error) toast.error(rlsErrorMessage(error));
+    const key = field === 'needs_m1' ? 'needsM1' : field === 'needs_baptism' ? 'needsBaptism' : 'needsPastor';
+    try {
+      await updateM1PersonNeeds(personId!, { [key]: value });
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
+    }
     onChanged();
   }
 

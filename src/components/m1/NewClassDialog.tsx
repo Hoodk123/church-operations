@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarPlus } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
-import { useShellMember } from '@/components/layout/shell';
+import { createM1Class } from '@/lib/api/m1';
 import {
-  addDaysISO,
   DEFAULT_REQUIRED_DAYS,
   DEFAULT_START_TIME,
   DEFAULT_VENUE,
@@ -40,9 +38,6 @@ export default function NewClassDialog({
   onOpenChange,
   onCreated,
 }: NewClassDialogProps) {
-  const member = useShellMember();
-  const supabase = createClient();
-
   const today = new Date();
   const [title, setTitle] = useState(`M1 ${MONTHS[today.getMonth()]} cohort`);
   const [venue, setVenue] = useState(DEFAULT_VENUE);
@@ -61,42 +56,22 @@ export default function NewClassDialog({
       return;
     }
 
-    const { data, error } = await supabase
-      .from('m1_classes')
-      .insert({
+    try {
+      const classId = await createM1Class({
         title: title.trim() || 'M1 class',
         venue: venue.trim() || null,
-        required_days: requiredDays,
-        status: 'Open',
-        created_by: member?.id ?? null,
-      })
-      .select('id')
-      .single();
-
-    if (error) {
+        requiredDays,
+        startTime: startTime || null,
+        firstDate,
+      });
+      toast.success(`${title.trim() || 'M1 class'} scheduled for ${requiredDays} weeks`);
+      onOpenChange(false);
+      onCreated(classId);
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    const rows = Array.from({ length: requiredDays }, (_, i) => ({
-      class_id: data.id,
-      day_number: i + 1,
-      session_date: addDaysISO(firstDate, i * 7),
-      start_time: startTime || null,
-    }));
-
-    const { error: sessErr } = await supabase.from('m1_sessions').insert(rows);
-    if (sessErr) {
-      toast.error(rlsErrorMessage(sessErr));
-      setSubmitting(false);
-      return;
-    }
-
-    toast.success(`${title.trim() || 'M1 class'} scheduled for ${requiredDays} weeks`);
-    onOpenChange(false);
-    onCreated(data.id);
-    setSubmitting(false);
   }
 
   return (

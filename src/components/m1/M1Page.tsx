@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { CalendarPlus, BellRing, Plus, Users } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import ScreenHeader from '@/components/layout/ScreenHeader';
 import {
+  fetchM1Classes,
   fetchClassStats,
   fetchClassSessions,
   venueLabel,
@@ -35,11 +35,13 @@ type TabKey = 'enrolled' | 'needs' | 'missed' | 'materials' | 'certificates';
 
 export default function M1Page() {
   const member = useShellMember();
-  const supabase = createClient();
 
   const role = member?.role;
   const isAdmin = role === 'Admin';
   const isLeader = role === 'Admin' || role === 'Pastor' || role === 'Follow-up Coordinator';
+  const canEnroll = role === 'Admin' || role === 'Info Desk' || role === 'Follow-up Coordinator';
+  const canTick = role === 'Admin' || role === 'Info Desk' || role === 'Follow-up Coordinator';
+  const canManageDay = role === 'Admin' || role === 'Follow-up Coordinator';
 
   const [classes, setClasses] = useState<M1Class[]>([]);
   const [classId, setClassId] = useState<string | null>(null);
@@ -58,16 +60,8 @@ export default function M1Page() {
 
   const loadClasses = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('m1_classes')
-      .select('id, title, venue, required_days, status, archived_at, created_by, created_at')
-      .order('status', { ascending: false })
-      .order('created_at', { ascending: false });
-    if (error) {
-      toast.error(rlsErrorMessage(error));
-      setClasses([]);
-    } else {
-      const rows = (data ?? []) as M1Class[];
+    try {
+      const rows = await fetchM1Classes();
       setClasses(rows);
       setClassId((prev) =>
         prev && rows.some((k) => k.id === prev)
@@ -77,9 +71,12 @@ export default function M1Page() {
             rows[0]?.id ??
             null)
       );
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
+      setClasses([]);
     }
     setLoading(false);
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     loadClasses();
@@ -88,7 +85,7 @@ export default function M1Page() {
   useEffect(() => {
     if (!classId) return;
     let cancelled = false;
-    Promise.all([fetchClassStats(supabase, classId), fetchClassSessions(supabase, classId)])
+    Promise.all([fetchClassStats(classId), fetchClassSessions(classId)])
       .then(([next, sessions]) => {
         if (cancelled) return;
         setStatsState({ id: classId, data: next });
@@ -98,11 +95,11 @@ export default function M1Page() {
           session: sessions.find((s) => !s.closed) ?? null,
         });
       })
-      .catch(() => {});
+      .catch((error) => toast.error(rlsErrorMessage(error)));
     return () => {
       cancelled = true;
     };
-  }, [supabase, classId, statsNonce]);
+  }, [classId, statsNonce]);
 
   const stats = statsState && statsState.id === classId ? statsState.data : null;
   const activeSession = activeSessionState?.id === classId ? activeSessionState.session : null;
@@ -216,21 +213,22 @@ export default function M1Page() {
                 <BellRing className="size-4" />
                 Send reminders
               </Button>
-              <Button
-                variant="outline"
-                className="hidden md:inline-flex"
-                disabled={!klass}
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="size-4" />
-                Add member
-              </Button>
+              {canEnroll && (
+                <Button
+                  variant="outline"
+                  className="hidden md:inline-flex"
+                  disabled={!klass}
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="size-4" />
+                  Add member
+                </Button>
+              )}
               {klass && (
                 <ClassMenu
                   klass={klass}
                   sessions={sessions}
                   isAdmin={isAdmin}
-                  isLeader={isLeader}
                   onChanged={reload}
                 />
               )}
@@ -276,12 +274,19 @@ export default function M1Page() {
                   key={classId}
                   klass={klass}
                   isAdmin={isAdmin}
-                  isLeader={isLeader}
+                  canTick={canTick}
+                  canManageDay={canManageDay}
                   onChanged={reload}
                 />
               </TabsContent>
               <TabsContent value="needs" className="mt-4">
-                <NeedsM1Tab key={classId} klass={klass} isAdmin={isAdmin} onChanged={reload} />
+                <NeedsM1Tab
+                  key={classId}
+                  klass={klass}
+                  isAdmin={isAdmin}
+                  canEnroll={canEnroll}
+                  onChanged={reload}
+                />
               </TabsContent>
               <TabsContent value="missed" className="mt-4">
                 <MissedTab key={classId} klass={klass} isLeader={isLeader} onChanged={reload} />
@@ -299,7 +304,8 @@ export default function M1Page() {
                 key={classId}
                 klass={klass}
                 isAdmin={isAdmin}
-                isLeader={isLeader}
+                canTick={canTick}
+                canManageDay={canManageDay}
                 onChanged={reload}
               />
             )
@@ -307,17 +313,19 @@ export default function M1Page() {
         </>
       )}
 
-      <div className="fixed inset-x-0 bottom-[4.25rem] z-30 px-4 md:hidden">
-        <Button
-          size="lg"
-          className="h-12 w-full text-base shadow-lg"
-          disabled={!klass}
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="size-4" />
-          Add member
-        </Button>
-      </div>
+      {canEnroll && (
+        <div className="fixed inset-x-0 bottom-[4.25rem] z-30 px-4 md:hidden">
+          <Button
+            size="lg"
+            className="h-12 w-full text-base shadow-lg"
+            disabled={!klass}
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="size-4" />
+            Add member
+          </Button>
+        </div>
+      )}
 
       {klass && (
         <AddSheet

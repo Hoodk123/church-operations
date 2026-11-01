@@ -28,7 +28,13 @@ export async function registerM1MessageRoutes(app: FastifyInstance): Promise<voi
       const rows = await req.prisma.m1MessageLog.findMany({
         where: { sessionId: param.data },
         orderBy: [{ sentAt: "desc" }],
-        select: { personId: true, sentAt: true, purpose: true, channel: true },
+        select: {
+          personId: true,
+          sentAt: true,
+          purpose: true,
+          channel: true,
+          sentByRef: { select: { fullName: true } },
+        },
       });
       return {
         items: rows.map((row) => ({
@@ -36,6 +42,37 @@ export async function registerM1MessageRoutes(app: FastifyInstance): Promise<voi
           sentAt: isoDate(row.sentAt),
           purpose: row.purpose,
           channel: row.channel,
+          senderName: row.sentByRef?.fullName ?? null,
+        })),
+      };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/m1/people/:id/messages",
+    { config: { access: "auth", action: "m1:read" } },
+    async (req, reply) => {
+      const param = idParam.safeParse(req.params.id);
+      if (!param.success) return reply.code(400).send({ error: "invalid person id" });
+      const rows = await req.prisma.m1MessageLog.findMany({
+        where: { personId: param.data },
+        orderBy: [{ sentAt: "desc" }],
+        take: 1,
+        select: {
+          personId: true,
+          sentAt: true,
+          purpose: true,
+          channel: true,
+          sentByRef: { select: { fullName: true } },
+        },
+      });
+      return {
+        items: rows.map((row) => ({
+          personId: row.personId,
+          sentAt: isoDate(row.sentAt),
+          purpose: row.purpose,
+          channel: row.channel,
+          senderName: row.sentByRef?.fullName ?? null,
         })),
       };
     },
@@ -80,7 +117,7 @@ export async function registerM1MessageRoutes(app: FastifyInstance): Promise<voi
     },
   );
 
-  app.post("/api/m1/messages", { config: { access: "auth", action: "m1:enroll" } }, async (req, reply) => {
+  app.post("/api/m1/messages", { config: { access: "auth", action: "m1:message-write" } }, async (req, reply) => {
     const parsed = z
       .object({
         personId: z.uuid(),
@@ -114,7 +151,7 @@ export async function registerM1MessageRoutes(app: FastifyInstance): Promise<voi
 
   app.post<{ Params: { id: string } }>(
     "/api/m1/sessions/:id/reply-links",
-    { config: { access: "auth", action: "m1:enroll" } },
+    { config: { access: "auth", action: "m1:reply-link-write" } },
     async (req, reply) => {
       const param = idParam.safeParse(req.params.id);
       if (!param.success) return reply.code(400).send({ error: "invalid session id" });

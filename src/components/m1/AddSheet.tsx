@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Search, UserPlus, Plus } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { validateRwandaPhone, phoneDigits } from '@/lib/phone';
-import { useShellMember } from '@/components/layout/shell';
 import {
   personName,
   fetchClassSessions,
   type M1Person,
   type M1Session,
 } from '@/components/m1/m1';
+import { m1PersonFromApi, m1PersonSearchFromApi } from '@/components/m1/m1';
+import {
+  createM1WalkInPerson,
+  enrollM1Person,
+  findM1PersonByPhoneSuffix,
+  listM1WaitingList,
+  searchM1People,
+  updateM1Attendance,
+} from '@/lib/api/m1';
 import { contactPreferenceOptions, ageGroups, genders } from '@/components/people/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,9 +89,6 @@ interface AddSheetBodyProps {
 
 /** Mounted fresh each time the dialog opens, so its fields start clean. */
 function AddSheetBody({ classId, onAdded, onClose }: AddSheetBodyProps) {
-  const member = useShellMember();
-  const supabase = createClient();
-
   const [mode, setMode] = useState<'existing' | 'walkin'>('existing');
   const [query, setQuery] = useState('');
   const [waiting, setWaiting] = useState<M1Person[]>([]);
@@ -101,39 +105,36 @@ function AddSheetBody({ classId, onAdded, onClose }: AddSheetBodyProps) {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      Promise.resolve(supabase.rpc('m1_waiting_list')),
-      fetchClassSessions(supabase, classId),
+      listM1WaitingList(),
+      fetchClassSessions(classId),
     ])
-      .then(([waitingResult, sessions]) => {
+      .then(([waitingRows, sessions]) => {
         if (cancelled) return;
-        if (waitingResult.error) toast.error(rlsErrorMessage(waitingResult.error));
-        else setWaiting((waitingResult.data ?? []) as M1Person[]);
+        setWaiting(waitingRows.map(m1PersonFromApi));
         setOpenSession(sessions.find((s) => !s.closed) ?? null);
       })
+      .catch((error) => toast.error(rlsErrorMessage(error)))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [supabase, classId]);
+  }, [classId]);
 
   useEffect(() => {
     const q = query.trim();
     if (!q) return;
     let cancelled = false;
-    supabase
-      .from('people')
-      .select('id, first_name, last_name, phone, age_group, location')
-      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%`)
-      .limit(20)
-      .then(({ data }) => {
-        if (!cancelled) setResults((data ?? []) as M1Person[]);
-      });
+    searchM1People(q)
+      .then((people) => {
+        if (!cancelled) setResults(people.map(m1PersonSearchFromApi));
+      })
+      .catch((error) => toast.error(rlsErrorMessage(error)));
     return () => {
       cancelled = true;
     };
-  }, [query, supabase]);
+  }, [query]);
 
   const filteredWaiting = waiting.filter((p) => {
     const q = query.trim().toLowerCase();
@@ -155,23 +156,21 @@ function AddSheetBody({ classId, onAdded, onClose }: AddSheetBodyProps) {
 
   async function enroll(personId: string, name: string) {
     setEnrolling(personId);
-    const { error } = await supabase.from('m1_enrollments').insert({
-      class_id: classId,
-      person_id: personId,
-      enrolled_by: member?.id ?? null,
-      walk_in: false,
-      status: 'Enrolled',
-    });
+    let error: unknown;
+    try {
+      await enrollM1Person(classId, { personId, walkIn: false });
+    } catch (caught) {
+      error = caught;
+    }
     setEnrolling(null);
     if (error) {
-      if (error.code === '23505') {
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 409) {
         toast.info(`${name} is already in this class`);
         return;
       }
       toast.error(rlsErrorMessage(error));
       return;
     }
-    await supabase.from('people').update({ needs_m1: false }).eq('id', personId);
     toast.success(`${name} enrolled`);
     onAdded();
   }
@@ -194,64 +193,55 @@ function AddSheetBody({ classId, onAdded, onClose }: AddSheetBodyProps) {
     const name = personName({ first_name: form.first_name.trim(), last_name: form.last_name.trim() });
     const digits = phoneDigits(phoneValidation.formatted).slice(-9);
 
-    const { data: candidates } = await supabase
-      .from('people')
-      .select('id, first_name, last_name, phone')
-      .ilike('phone', `%${digits}%`)
-      .limit(5);
-    const match = candidates?.find((p) => phoneDigits(p.phone ?? '').endsWith(digits));
+    let candidates: M1Person[];
+    try {
+      candidates = (await findM1PersonByPhoneSuffix(digits)).map(m1PersonSearchFromApi);
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
+      setSaving(false);
+      return;
+    }
+    const match = candidates.find((p) => phoneDigits(p.phone ?? '').endsWith(digits));
     if (match) {
       setSudden({ id: match.id, name: `${match.first_name} ${match.last_name}` });
       setSaving(false);
       return;
     }
 
-    const { data: inserted, error: insertErr } = await supabase
-      .from('people')
-      .insert({
-        first_name: form.first_name.trim(),
-        last_name: form.last_name.trim(),
+    let personId: string;
+    try {
+      personId = await createM1WalkInPerson({
+        firstName: form.first_name.trim(),
+        lastName: form.last_name.trim(),
         phone: phoneValidation.formatted,
         email: form.email.trim() || null,
-        gender: form.gender || null,
-        age_group: form.age_group || null,
+        gender: genders.find((value) => value === form.gender) ?? null,
+        ageGroup: ageGroups.find((value) => value === form.age_group) ?? null,
         location: form.location.trim() || null,
-        address_details: form.address_details.trim() || null,
-        contact_preference: form.contact_preference || 'WhatsApp',
-        category: 'M1 Class',
-        needs_m1: true,
-        registered_by: member?.id ?? null,
-      })
-      .select('id')
-      .single();
-
-    if (insertErr) {
-      toast.error(rlsErrorMessage(insertErr));
+        addressDetails: form.address_details.trim() || null,
+        contactPreference:
+          contactPreferenceOptions.find((value) => value === form.contact_preference) ?? 'WhatsApp',
+      });
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
       setSaving(false);
       return;
     }
 
-    const { error } = await supabase.from('m1_enrollments').insert({
-      class_id: classId,
-      person_id: inserted.id,
-      enrolled_by: member?.id ?? null,
-      walk_in: true,
-      status: 'Enrolled',
-    });
-    if (error) {
+    try {
+      await enrollM1Person(classId, { personId, walkIn: true });
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       setSaving(false);
       return;
     }
 
     if (tickNow && openSession) {
-      const { error: tickErr } = await supabase.from('m1_attendance').insert({
-        session_id: openSession.id,
-        person_id: inserted.id,
-        status: 'Present',
-        marked_by: member?.id ?? '',
-      });
-      if (tickErr) toast.error(rlsErrorMessage(tickErr));
+      try {
+        await updateM1Attendance(openSession.id, { personId, status: 'Present' });
+      } catch (error) {
+        toast.error(rlsErrorMessage(error));
+      }
     }
 
     setSaving(false);

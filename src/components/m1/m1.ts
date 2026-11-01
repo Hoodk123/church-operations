@@ -1,6 +1,21 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHURCH_NAME } from '@/lib/church';
 import { todayISO } from '@/lib/dates';
+import {
+  listM1Attendance,
+  listM1Classes,
+  listM1Enrollments,
+  listM1Materials,
+  listM1Sessions,
+  listM1WaitingList,
+} from '@/lib/api/m1';
+import type {
+  M1AttendanceApi,
+  M1ClassApi,
+  M1EnrollmentApi,
+  M1PersonApi,
+  M1PersonSearchApi,
+  M1SessionApi,
+} from '../../../packages/shared/schemas/m1';
 
 export interface M1Person {
   id: string;
@@ -60,7 +75,7 @@ export interface M1Attendance {
   id: string;
   session_id: string;
   person_id: string;
-  status: string;
+  status: 'Present' | 'Absent' | 'Excused';
   people?: M1Person | null;
 }
 
@@ -140,68 +155,119 @@ export function personName(person: Pick<M1Person, 'first_name' | 'last_name'>): 
   return `${person.first_name} ${person.last_name}`;
 }
 
-export async function fetchClassSessions(
-  supabase: SupabaseClient,
-  classId: string
-): Promise<M1Session[]> {
-  const { data } = await supabase
-    .from('m1_sessions')
-    .select('*')
-    .eq('class_id', classId)
-    .order('day_number', { ascending: true });
-  return data ?? [];
+export function m1PersonFromApi(person: M1PersonApi): M1Person {
+  return {
+    id: person.id,
+    first_name: person.firstName,
+    last_name: person.lastName,
+    phone: person.phone,
+    email: person.email,
+    location: person.location,
+    address_details: person.addressDetails,
+    gender: person.gender,
+    age_group: person.ageGroup,
+    contact_preference: person.contactPreference,
+    category: person.category,
+    m1_status: person.m1Status,
+    baptism_status: person.baptismStatus,
+    needs_m1: person.needsM1,
+    needs_baptism: person.needsBaptism,
+    needs_pastor: person.needsPastor,
+  };
 }
 
-export async function fetchEnrollments(
-  supabase: SupabaseClient,
-  classId: string
-): Promise<M1Enrollment[]> {
-  const { data } = await supabase
-    .from('m1_enrollments')
-    .select(
-      'id, class_id, person_id, enrolled_at, walk_in, status, certificate_no, certificate_issued_at, people(id, first_name, last_name, phone, email, location, address_details, gender, age_group, contact_preference, category, m1_status, baptism_status, needs_m1, needs_baptism, needs_pastor)'
-    )
-    .eq('class_id', classId)
-    .order('enrolled_at', { ascending: true });
-  return (data ?? []) as unknown as M1Enrollment[];
+export function m1PersonSearchFromApi(person: M1PersonSearchApi): M1Person {
+  return {
+    id: person.id,
+    first_name: person.firstName,
+    last_name: person.lastName,
+    phone: person.phone,
+    email: null,
+    location: person.location,
+    address_details: null,
+    gender: '',
+    age_group: person.ageGroup,
+    contact_preference: null,
+    category: '',
+    m1_status: null,
+    baptism_status: null,
+    needs_m1: false,
+    needs_baptism: false,
+    needs_pastor: false,
+  };
+}
+
+function classFromApi(row: M1ClassApi): M1Class {
+  return {
+    id: row.id,
+    title: row.title,
+    venue: row.venue,
+    required_days: row.requiredDays,
+    status: row.status,
+    archived_at: row.archivedAt,
+    created_by: row.createdBy,
+    created_at: row.createdAt,
+  };
+}
+
+function sessionFromApi(row: M1SessionApi): M1Session {
+  return {
+    id: row.id,
+    class_id: row.classId,
+    day_number: row.dayNumber,
+    session_date: row.sessionDate,
+    start_time: row.startTime,
+    topic: row.topic,
+    summary: row.summary,
+    closed: row.closed,
+  };
+}
+
+function enrollmentFromApi(row: M1EnrollmentApi): M1Enrollment {
+  return {
+    id: row.id,
+    class_id: row.classId,
+    person_id: row.personId,
+    enrolled_at: row.enrolledAt,
+    walk_in: row.walkIn,
+    status: row.status,
+    certificate_no: row.certificateNo,
+    certificate_issued_at: row.certificateIssuedAt,
+    certificate_override_note: row.certificateOverrideNote,
+    people: m1PersonFromApi(row.person),
+  };
+}
+
+function attendanceFromApi(row: M1AttendanceApi): M1Attendance {
+  return { id: row.id, session_id: row.sessionId, person_id: row.personId, status: row.status };
+}
+
+export async function fetchM1Classes(): Promise<M1Class[]> {
+  return (await listM1Classes()).map(classFromApi);
+}
+
+export async function fetchClassSessions(classId: string): Promise<M1Session[]> {
+  return (await listM1Sessions(classId)).map(sessionFromApi);
+}
+
+export async function fetchEnrollments(classId: string): Promise<M1Enrollment[]> {
+  return (await listM1Enrollments(classId)).map(enrollmentFromApi);
 }
 
 export async function fetchAttendance(
-  supabase: SupabaseClient,
   classId: string
-): Promise<Record<string, { id: string; session_id: string; person_id: string; status: string }[]>> {
-  const sessions = await fetchClassSessions(supabase, classId);
-  const ids = sessions.map((s) => s.id);
-  if (ids.length === 0) return {};
-  const { data } = await supabase
-    .from('m1_attendance')
-    .select('id, session_id, person_id, status')
-    .in('session_id', ids);
-  const bySession: Record<string, { id: string; session_id: string; person_id: string; status: string }[]> = {};
-  for (const row of data ?? []) {
-    (bySession[row.session_id] ??= []).push(row);
-  }
+): Promise<Record<string, M1Attendance[]>> {
+  const rows = (await listM1Attendance(classId)).map(attendanceFromApi);
+  const bySession: Record<string, M1Attendance[]> = {};
+  for (const row of rows) (bySession[row.session_id] ??= []).push(row);
   return bySession;
 }
 
-/**
- * Count Present markers per person across every day of a class. Used by the
- * Enrolled tab (progress bar) and by close-class / verify.
- */
-export async function fetchPresentCounts(
-  supabase: SupabaseClient,
-  classId: string
-): Promise<Record<string, number>> {
-  const sessions = await fetchClassSessions(supabase, classId);
-  const ids = sessions.map((s) => s.id);
-  if (ids.length === 0) return {};
-  const { data } = await supabase
-    .from('m1_attendance')
-    .select('person_id')
-    .in('session_id', ids)
-    .eq('status', 'Present');
+export async function fetchPresentCounts(classId: string): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  for (const row of data ?? []) counts[row.person_id] = (counts[row.person_id] ?? 0) + 1;
+  for (const row of (await listM1Attendance(classId)).filter((item) => item.status === 'Present')) {
+    counts[row.personId] = (counts[row.personId] ?? 0) + 1;
+  }
   return counts;
 }
 
@@ -220,16 +286,13 @@ export interface M1ClassStats {
   activePresent: number;
 }
 
-export async function fetchClassStats(
-  supabase: SupabaseClient,
-  classId: string
-): Promise<M1ClassStats> {
+export async function fetchClassStats(classId: string): Promise<M1ClassStats> {
   const [sessions, attendanceBySession, enrollments, waiting, materials] = await Promise.all([
-    fetchClassSessions(supabase, classId),
-    fetchAttendance(supabase, classId),
-    fetchEnrollments(supabase, classId),
-    supabase.rpc('m1_waiting_list'),
-    supabase.from('m1_materials').select('id').eq('class_id', classId),
+    fetchClassSessions(classId),
+    fetchAttendance(classId),
+    fetchEnrollments(classId),
+    listM1WaitingList(),
+    listM1Materials(classId),
   ]);
   const enrolled = enrollments.filter((e) => e.status === 'Enrolled');
   const enrolledIds = new Set(enrolled.map((e) => e.person_id));
@@ -244,49 +307,15 @@ export async function fetchClassStats(
       if (row.status === 'Absent' && enrolledIds.has(row.person_id)) missed.add(row.person_id);
     }
   }
-  const waitingData = waiting.data as unknown[] | null;
   return {
     enrolled: enrolled.length,
-    waiting: Array.isArray(waitingData) ? waitingData.length : 0,
+    waiting: waiting.length,
     missed: missed.size,
-    materials: (materials.data ?? []).length,
+    materials: materials.length,
     days: sessions.length,
     activeDay: activeSession?.day_number ?? null,
     activePresent,
   };
-}
-
-/**
- * The close-class step the DB does not automate: any "Enrolled" student whose
- * Present count already clears the required days gets promoted to Completed and
- * their person row synced — without a certificate.
- */
-export async function completeEligibleEnrollments(
-  supabase: SupabaseClient,
-  classId: string,
-  requiredDays: number
-): Promise<void> {
-  const [enrollments, counts] = await Promise.all([
-    fetchEnrollments(supabase, classId),
-    fetchPresentCounts(supabase, classId),
-  ]);
-  const due = enrollments.filter(
-    (e) => e.status === 'Enrolled' && (counts[e.person_id] ?? 0) >= requiredDays
-  );
-  if (due.length === 0) return;
-  const { data: updated } = await supabase
-    .from('m1_enrollments')
-    .update({ status: 'Completed' })
-    .in('id', due.map((e) => e.id))
-    .select('person_id')
-    .returns<{ person_id: string }[]>();
-  const personIds = (updated ?? []).map((r) => r.person_id);
-  if (personIds.length > 0) {
-    await supabase
-      .from('people')
-      .update({ m1_status: 'Completed', needs_m1: false })
-      .in('id', personIds);
-  }
 }
 
 /** Whether the visiting student has hit the required-day counts already. */

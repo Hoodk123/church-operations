@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { MessageCircle, Plus, UserRound } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import { venueLabel, personName, fmtDate, type M1Class, type M1Person } from '@/components/m1/m1';
+import { m1PersonFromApi } from '@/components/m1/m1';
+import { enrollM1Person, listM1WaitingList, logM1Message } from '@/lib/api/m1';
 import { fillTemplate } from '@/lib/templates';
 import { fetchTemplate } from '@/components/classes/templates';
 import { pickChannel, messageHref } from '@/lib/messaging';
@@ -16,12 +17,12 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 interface NeedsM1TabProps {
   klass: M1Class;
   isAdmin: boolean;
+  canEnroll: boolean;
   onChanged: () => void;
 }
 
-export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
+export function NeedsM1Tab({ klass, isAdmin, canEnroll, onChanged }: NeedsM1TabProps) {
   const member = useShellMember();
-  const supabase = createClient();
 
   const [waiting, setWaiting] = useState<M1Person[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -31,31 +32,23 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
 
   const load = useCallback(() => {
     setLoading(true);
-    Promise.resolve(supabase.rpc('m1_waiting_list'))
-      .then(({ data, error }) => {
-        if (error) toast.error(rlsErrorMessage(error));
-        else setWaiting((data ?? []) as M1Person[]);
-      })
+    listM1WaitingList()
+      .then((rows) => setWaiting(rows.map(m1PersonFromApi)))
+      .catch((error) => toast.error(rlsErrorMessage(error)))
       .finally(() => setLoading(false));
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
   async function enrollOne(person: M1Person): Promise<boolean> {
-    const { error } = await supabase.from('m1_enrollments').insert({
-      class_id: klass.id,
-      person_id: person.id,
-      enrolled_by: member?.id ?? null,
-      walk_in: false,
-      status: 'Enrolled',
-    });
-    if (error && error.code !== '23505') {
+    try {
+      await enrollM1Person(klass.id, { personId: person.id, walkIn: false });
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
       return false;
     }
-    await supabase.from('people').update({ needs_m1: false }).eq('id', person.id);
     return true;
   }
 
@@ -118,13 +111,17 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
       return;
     }
     window.open(href, '_blank', 'noopener');
-    await supabase.from('m1_message_log').insert({
-      class_id: klass.id,
-      person_id: person.id,
-      purpose: 'reminder',
-      channel,
-      sent_by: member?.id ?? null,
-    });
+    try {
+      await logM1Message({
+        classId: klass.id,
+        personId: person.id,
+        sessionId: null,
+        purpose: 'reminder',
+        channel,
+      });
+    } catch (error) {
+      toast.error(rlsErrorMessage(error));
+    }
     setReminding(null);
     toast.success(`Message ready for ${person.first_name}`);
   }
@@ -181,15 +178,17 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
           {waiting.length} waiting
         </label>
         <span className="text-xs text-muted-foreground">{venueLabel(klass.venue)}</span>
-        <Button
-          size="sm"
-          className="ml-auto"
-          disabled={busy || selected.size === 0}
-          onClick={enrollSelected}
-        >
-          {busy ? <Spinner className="size-4" /> : <Plus className="size-4" />}
-          Enrol selected{selected.size > 0 ? ` (${selected.size})` : ''}
-        </Button>
+        {canEnroll && (
+          <Button
+            size="sm"
+            className="ml-auto"
+            disabled={busy || selected.size === 0}
+            onClick={enrollSelected}
+          >
+            {busy ? <Spinner className="size-4" /> : <Plus className="size-4" />}
+            Enrol selected{selected.size > 0 ? ` (${selected.size})` : ''}
+          </Button>
+        )}
       </div>
 
       <div className="min-w-0 overflow-hidden rounded-xl border">
@@ -207,7 +206,11 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
             {waiting.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="px-3 py-2">
-                  <Checkbox checked={selected.has(p.id)} onCheckedChange={(v) => toggle(p.id, v === true)} />
+                  <Checkbox
+                    checked={selected.has(p.id)}
+                    disabled={!canEnroll}
+                    onCheckedChange={(v) => toggle(p.id, v === true)}
+                  />
                 </td>
                 <td className="px-3 py-2 font-medium">{personName(p)}</td>
                 <td className="px-3 py-2 text-muted-foreground">{p.phone ?? '—'}</td>
@@ -225,10 +228,12 @@ export function NeedsM1Tab({ klass, isAdmin, onChanged }: NeedsM1TabProps) {
                       {reminding === p.id ? <Spinner className="size-3.5" /> : <MessageCircle className="size-3.5" />}
                       Remind
                     </Button>
-                    <Button size="sm" disabled={busy} onClick={() => enroll(p)}>
-                      <Plus className="size-3.5" />
-                      {isAdmin ? 'Enrol' : 'Add'}
-                    </Button>
+                    {canEnroll && (
+                      <Button size="sm" disabled={busy} onClick={() => enroll(p)}>
+                        <Plus className="size-3.5" />
+                        {isAdmin ? 'Enrol' : 'Add'}
+                      </Button>
+                    )}
                   </div>
                 </td>
               </tr>

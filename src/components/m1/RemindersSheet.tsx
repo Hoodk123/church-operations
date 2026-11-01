@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { BellRing } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import {
@@ -14,6 +13,7 @@ import {
   type M1Enrollment,
   type M1Session,
 } from '@/components/m1/m1';
+import { listM1Messages, logM1Message } from '@/lib/api/m1';
 import { fillTemplate, type TemplateValues } from '@/lib/templates';
 import { messageHref, pickChannel } from '@/lib/messaging';
 import { fetchTemplate } from '@/components/classes/templates';
@@ -37,7 +37,9 @@ interface RemindersSheetProps {
   session: M1Session;
 }
 
-const TEMPLATE_PURPOSES: { purpose: string; label: string; logPurpose: string }[] = [
+type MessagePurpose = 'reminder' | 'catch_up' | 'materials' | 'certificate' | 'baptism' | 'other';
+
+const TEMPLATE_PURPOSES: { purpose: string; label: string; logPurpose: MessagePurpose }[] = [
   { purpose: 'm1_reminder', label: 'Class reminder', logPurpose: 'reminder' },
   { purpose: 'm1_catch_up', label: 'Missed catch-up', logPurpose: 'catch_up' },
   { purpose: 'm1_materials', label: 'Notes', logPurpose: 'materials' },
@@ -50,7 +52,6 @@ const NAME_VALUE = (person: M1Enrollment['people'], templateBody: string) =>
 
 export default function RemindersSheet({ open, onOpenChange, klass, session }: RemindersSheetProps) {
   const member = useShellMember();
-  const supabase = createClient();
 
   const [data, setData] = useState<{
     key: string;
@@ -71,19 +72,16 @@ export default function RemindersSheet({ open, onOpenChange, klass, session }: R
     if (!open) return;
     let cancelled = false;
     Promise.all([
-      fetchEnrollments(supabase, klass.id),
+      fetchEnrollments(klass.id),
       Promise.all(TEMPLATE_PURPOSES.map((t) => fetchTemplate(t.purpose))),
-      supabase
-        .from('m1_message_log')
-        .select('person_id, sent_at')
-        .eq('session_id', session.id),
+      listM1Messages(session.id),
     ])
       .then(([enrollments, tpls, logResult]) => {
         if (cancelled) return;
         const map: Record<string, string> = {};
-        for (const row of logResult.data ?? []) {
-          const prev = map[row.person_id];
-          if (!prev || prev < row.sent_at) map[row.person_id] = row.sent_at;
+        for (const row of logResult) {
+          const prev = map[row.personId];
+          if (!prev || prev < row.sentAt) map[row.personId] = row.sentAt;
         }
         setData({
           key: dataKey,
@@ -100,7 +98,7 @@ export default function RemindersSheet({ open, onOpenChange, klass, session }: R
     return () => {
       cancelled = true;
     };
-  }, [open, klass.id, session.id, supabase, dataKey]);
+  }, [open, klass.id, session.id, dataKey]);
 
   const currentTemplate = templates.find((t) => t.purpose === purpose) ?? templates[0] ?? null;
 
@@ -128,16 +126,21 @@ export default function RemindersSheet({ open, onOpenChange, klass, session }: R
     window.open(href, '_blank', 'noopener');
     setSending(person.id);
     const logPurpose = TEMPLATE_PURPOSES.find((t) => t.purpose === purpose)?.logPurpose ?? 'other';
-    const { error } = await supabase.from('m1_message_log').insert({
-      person_id: person.id,
-      class_id: klass.id,
-      session_id: session.id,
-      purpose: logPurpose,
-      channel,
-      sent_by: member?.id ?? null,
-    });
+    let failed = false;
+    try {
+      await logM1Message({
+        personId: person.id,
+        classId: klass.id,
+        sessionId: session.id,
+        purpose: logPurpose,
+        channel,
+      });
+    } catch (error) {
+      failed = true;
+      toast.error(rlsErrorMessage(error));
+    }
     setSending(null);
-    if (error) {
+    if (failed) {
       toast.info(`${personName(person)}: opened in ${channel}`);
       return;
     }

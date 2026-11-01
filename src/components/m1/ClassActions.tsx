@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Archive, ArchiveRestore, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
+import {
+  deleteM1Class,
+  listM1AbsenceReplies,
+  listM1Attendance,
+  listM1Enrollments,
+  listM1Materials,
+  updateM1Class,
+} from '@/lib/api/m1';
 import { type M1Class, type M1Session } from '@/components/m1/m1';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,31 +42,28 @@ interface ClassMenuProps {
   klass: M1Class;
   sessions: M1Session[];
   isAdmin: boolean;
-  isLeader: boolean;
   onChanged: () => void;
 }
 
-export function ClassMenu({ klass, sessions, isAdmin, isLeader, onChanged }: ClassMenuProps) {
-  const supabase = createClient();
+export function ClassMenu({ klass, sessions, isAdmin, onChanged }: ClassMenuProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
-  if (!isLeader && !isAdmin) return null;
+  if (!isAdmin) return null;
 
   const archived = !!klass.archived_at;
 
   async function toggleArchive() {
     setArchiving(true);
-    const { error } = await supabase
-      .from('m1_classes')
-      .update({ archived_at: archived ? null : new Date().toISOString() })
-      .eq('id', klass.id);
-    setArchiving(false);
-    if (error) {
+    try {
+      await updateM1Class(klass.id, { archived: !archived });
+    } catch (error) {
       toast.error(rlsErrorMessage(error));
+      setArchiving(false);
       return;
     }
+    setArchiving(false);
     toast.success(archived ? `${klass.title} restored` : `${klass.title} archived`);
     onChanged();
   }
@@ -136,10 +140,9 @@ interface SessionEdit {
 }
 
 function EditClassDialog({ klass, sessions: initialSessions, onClose, onSaved }: EditClassDialogProps) {
-  const supabase = createClient();
   const [title, setTitle] = useState(klass.title);
   const [venue, setVenue] = useState(klass.venue ?? '');
-  const [status, setStatus] = useState(klass.status);
+  const [status, setStatus] = useState<'Open' | 'Closed'>(klass.status === 'Closed' ? 'Closed' : 'Open');
   const [sessions, setSessions] = useState<SessionEdit[]>(() =>
     [...initialSessions]
       .sort((a, b) => a.day_number - b.day_number)
@@ -162,25 +165,21 @@ function EditClassDialog({ klass, sessions: initialSessions, onClose, onSaved }:
       return;
     }
     setSaving(true);
-    const { error } = await supabase
-      .from('m1_classes')
-      .update({ title: title.trim(), venue: venue.trim() || null, status })
-      .eq('id', klass.id);
-    if (error) {
+    try {
+      await updateM1Class(klass.id, {
+        title: title.trim(),
+        venue: venue.trim() || null,
+        status,
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          sessionDate: s.session_date,
+          startTime: s.start_time || null,
+        })),
+      });
+    } catch (error) {
       setSaving(false);
       toast.error(rlsErrorMessage(error));
       return;
-    }
-    for (const s of sessions) {
-      const { error: sessErr } = await supabase
-        .from('m1_sessions')
-        .update({ session_date: s.session_date, start_time: s.start_time || null })
-        .eq('id', s.id);
-      if (sessErr) {
-        setSaving(false);
-        toast.error(rlsErrorMessage(sessErr));
-        return;
-      }
     }
     setSaving(false);
     toast.success('Class updated');
@@ -266,7 +265,6 @@ interface DeleteCounts {
 }
 
 function DeleteClassDialog({ klass, onClose, onDeleted }: DeleteClassDialogProps) {
-  const supabase = createClient();
   const [counts, setCounts] = useState<DeleteCounts | null>(null);
   const [confirmName, setConfirmName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -274,32 +272,30 @@ function DeleteClassDialog({ klass, onClose, onDeleted }: DeleteClassDialogProps
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data: sessions } = await supabase.from('m1_sessions').select('id').eq('class_id', klass.id);
-      const ids = (sessions ?? []).map((s) => s.id);
-      const count = (p: PromiseLike<{ count: number | null }>) => Promise.resolve(p).then((r) => r.count ?? 0);
-      const [enrolled, ticks, files, replies, certificates] = await Promise.all([
-        count(supabase.from('m1_enrollments').select('id', { count: 'exact', head: true }).eq('class_id', klass.id)),
-        ids.length
-          ? count(supabase.from('m1_attendance').select('id', { count: 'exact', head: true }).in('session_id', ids))
-          : 0,
-        count(supabase.from('m1_materials').select('id', { count: 'exact', head: true }).eq('class_id', klass.id)),
-        ids.length
-          ? count(supabase.from('m1_absence_replies').select('id', { count: 'exact', head: true }).in('session_id', ids))
-          : 0,
-        count(
-          supabase
-            .from('m1_enrollments')
-            .select('id', { count: 'exact', head: true })
-            .eq('class_id', klass.id)
-            .not('certificate_no', 'is', null)
-        ),
-      ]);
-      if (!cancelled) setCounts({ enrolled, ticks, files, replies, certificates });
+      try {
+        const [enrollments, attendance, files, replies] = await Promise.all([
+          listM1Enrollments(klass.id),
+          listM1Attendance(klass.id),
+          listM1Materials(klass.id),
+          listM1AbsenceReplies(klass.id),
+        ]);
+        if (!cancelled) {
+          setCounts({
+            enrolled: enrollments.length,
+            ticks: attendance.length,
+            files: files.length,
+            replies: replies.length,
+            certificates: enrollments.filter((row) => row.certificateNo !== null).length,
+          });
+        }
+      } catch (error) {
+        if (!cancelled) toast.error(rlsErrorMessage(error));
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [supabase, klass.id]);
+  }, [klass.id]);
 
   const hasHistory =
     !!counts && (counts.ticks > 0 || counts.replies > 0 || counts.certificates > 0);
@@ -307,27 +303,28 @@ function DeleteClassDialog({ klass, onClose, onDeleted }: DeleteClassDialogProps
 
   async function archiveInstead() {
     setBusy(true);
-    const { error } = await supabase
-      .from('m1_classes')
-      .update({ archived_at: new Date().toISOString() })
-      .eq('id', klass.id);
-    setBusy(false);
-    if (error) {
+    try {
+      await updateM1Class(klass.id, { archived: true });
+    } catch (error) {
+      setBusy(false);
       toast.error(rlsErrorMessage(error));
       return;
     }
+    setBusy(false);
     toast.success(`${klass.title} archived`);
     onDeleted();
   }
 
   async function destroy() {
     setBusy(true);
-    const { error } = await supabase.rpc('delete_m1_class', { p_class: klass.id });
-    setBusy(false);
-    if (error) {
+    try {
+      await deleteM1Class(klass.id);
+    } catch (error) {
+      setBusy(false);
       toast.error(rlsErrorMessage(error));
       return;
     }
+    setBusy(false);
     toast.success(`${klass.title} deleted`);
     onDeleted();
   }

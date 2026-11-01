@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Printer } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { rlsErrorMessage } from '@/lib/rls-error';
 import {
+  fetchEnrollments,
+  fetchM1Classes,
   venueLabel,
   personName,
   fetchPresentCounts,
@@ -28,7 +30,6 @@ interface CertState {
 export default function CertificatePrintPage() {
   const [searchParams] = useSearchParams();
   const param = searchParams.get('e') ?? '';
-  const supabase = createClient();
 
   const [state, setState] = useState<CertState[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,55 +43,46 @@ export default function CertificatePrintPage() {
       return;
     }
 
-    const { data } = await supabase
-      .from('m1_enrollments')
-      .select('id, person_id, certificate_no, certificate_issued_at, class_id')
-      .in('id', ids);
-    const base = (data ?? []) as {
-      id: string;
-      person_id: string;
-      certificate_no: string | null;
-      certificate_issued_at: string | null;
-      class_id: string;
-    }[];
-    if (base.length === 0) {
-      setError('Could not load this certificate.');
-      setLoading(false);
-      return;
-    }
-
-    const orders = new Map(ids.map((id, index) => [id, index]));
-    const built = await Promise.all(
-      base.map(async (row) => {
-        const [personRes, classRes, counts] = await Promise.all([
-          supabase.from('people').select('first_name, last_name').eq('id', row.person_id).single(),
-          supabase.from('m1_classes').select('title, venue, required_days').eq('id', row.class_id).single(),
-          fetchPresentCounts(supabase, row.class_id),
-        ]);
-        if (personRes.error || !personRes.data || classRes.error || !classRes.data) return null;
-        return {
-          id: row.id,
-          certificate_no: row.certificate_no,
-          first_name: personRes.data.first_name,
-          last_name: personRes.data.last_name,
-          class_title: classRes.data.title,
-          class_venue: classRes.data.venue,
-          required_days: classRes.data.required_days,
-          issued_at: row.certificate_issued_at,
-          present: counts[row.person_id] ?? 0,
-        } satisfies CertState;
-      })
-    );
-
-    const clean = built.filter((row): row is CertState => !!row);
-    clean.sort((a, b) => (orders.get(a.id) ?? 0) - (orders.get(b.id) ?? 0));
-    if (clean.length === 0) {
-      setError('Could not load this certificate.');
-    } else {
-      setState(clean);
+    try {
+      const classes = await fetchM1Classes();
+      const groups = await Promise.all(classes.map(async (klass) => ({
+        klass,
+        enrollments: await fetchEnrollments(klass.id),
+      })));
+      const byId = new Map(
+        groups.flatMap(({ klass, enrollments }) =>
+          enrollments.filter((row) => ids.includes(row.id)).map((row) => [row.id, { klass, row }] as const)
+        )
+      );
+      const selected = ids.flatMap((id) => {
+        const found = byId.get(id);
+        return found ? [found] : [];
+      });
+      if (selected.length === 0) {
+        setError('Could not load this certificate.');
+        setLoading(false);
+        return;
+      }
+      const countsByClass = new Map<string, Record<string, number>>();
+      await Promise.all([...new Set(selected.map(({ klass }) => klass.id))].map(async (classId) => {
+        countsByClass.set(classId, await fetchPresentCounts(classId));
+      }));
+      setState(selected.map(({ klass, row }) => ({
+        id: row.id,
+        certificate_no: row.certificate_no,
+        first_name: row.people.first_name,
+        last_name: row.people.last_name,
+        class_title: klass.title,
+        class_venue: klass.venue,
+        required_days: klass.required_days,
+        issued_at: row.certificate_issued_at ?? null,
+        present: countsByClass.get(klass.id)?.[row.person_id] ?? 0,
+      })));
+    } catch (loadError) {
+      setError(rlsErrorMessage(loadError));
     }
     setLoading(false);
-  }, [param, supabase]);
+  }, [param]);
 
   useEffect(() => {
     void load();

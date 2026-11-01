@@ -671,6 +671,17 @@ async function main(): Promise<void> {
       assert.strictEqual(m1Sessions.json().items.length, 2);
       const sessionId1 = m1Sessions.json().items[0].id;
       assert.strictEqual(m1Sessions.json().items[0].startTime, "17:00");
+      const summaryUpdate = await second.inject({
+        method: "PATCH",
+        url: `/api/m1/sessions/${sessionId1}/summary`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { summary: "Fake session summary" },
+      });
+      assert.strictEqual(summaryUpdate.statusCode, 200);
+      assert.strictEqual(
+        (await prisma.m1Sessions.findUnique({ where: { id: sessionId1 }, select: { summary: true } }))?.summary,
+        "Fake session summary",
+      );
 
       // desk may not create a class (Admin-only action)
       const deskClassCreate = await second.inject({
@@ -690,6 +701,22 @@ async function main(): Promise<void> {
       });
       assert.strictEqual(m1Person.statusCode, 201);
       const m1PersonId = m1Person.json().id;
+      const m1PersonSearch = await second.inject({
+        method: "POST",
+        url: "/api/m1/people/search",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { query: m1Person.json().firstName },
+      });
+      assert.strictEqual(m1PersonSearch.statusCode, 200);
+      assert.ok(m1PersonSearch.json().items.some((person: { id: string }) => person.id === m1PersonId));
+      const m1PhoneMatch = await second.inject({
+        method: "POST",
+        url: "/api/m1/people/phone-match",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { suffix: m1Person.json().phone.replace(/\D/g, "").slice(-9) },
+      });
+      assert.strictEqual(m1PhoneMatch.statusCode, 200);
+      assert.ok(m1PhoneMatch.json().items.some((person: { id: string }) => person.id === m1PersonId));
       const waiting = await second.inject({
         method: "GET",
         url: "/api/m1/waiting-list",
@@ -769,6 +796,30 @@ async function main(): Promise<void> {
       assert.strictEqual(certs.json().issued, 1);
       const certRow = await prisma.m1Enrollments.findUnique({ where: { id: enrollmentId }, select: { certificateNo: true } });
       assert.ok(certRow?.certificateNo?.startsWith("M1-"));
+      const override = await second.inject({
+        method: "PATCH",
+        url: `/api/m1/enrollments/${enrollmentId}/certificate-override`,
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: { note: "Fake eligibility note" },
+      });
+      assert.strictEqual(override.statusCode, 200);
+      assert.strictEqual(
+        (await prisma.m1Enrollments.findUnique({ where: { id: enrollmentId }, select: { certificateOverrideNote: true } }))
+          ?.certificateOverrideNote,
+        "Fake eligibility note",
+      );
+      const absenceReply = await second.inject({
+        method: "POST",
+        url: "/api/m1/absence-replies",
+        headers: { ...peopleHeaders, cookie: adminCookie, "x-csrf-token": adminCsrf },
+        payload: {
+          sessionId: sessionId2,
+          personId: m1PersonId,
+          reason: "Work",
+          note: "Fake absence note",
+        },
+      });
+      assert.strictEqual(absenceReply.statusCode, 201);
 
       // a second person enrolled but never ticked: unfinished
       const m1Person2 = await second.inject({

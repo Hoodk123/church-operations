@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, MessageCircle, Mail, Smartphone } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { logM1Message } from '@/lib/api/m1';
 import { useIsMobile } from '@/lib/use-is-mobile';
-import { useShellMember } from '@/components/layout/shell';
 import {
   availableChannels,
   messageHref,
@@ -88,8 +87,6 @@ export default function ComposeMessageSheet({
   onLogged,
 }: ComposeMessageSheetProps) {
   const isMobile = useIsMobile();
-  const member = useShellMember();
-  const supabase = createClient();
 
   const recipientName =
     (person.name ?? [person.first_name, person.last_name].filter(Boolean).join(' ')) || '—';
@@ -131,21 +128,22 @@ export default function ComposeMessageSheet({
     window.open(href, '_blank', 'noopener');
     setSending(true);
 
-    const { error } = await supabase.from('m1_message_log').insert({
-      person_id: person.id,
-      class_id: classId,
-      session_id: sessionId,
-      purpose,
-      channel,
-      sent_by: member?.id ?? null,
-    });
-    setSending(false);
-
-    if (error) {
+    try {
+      await logM1Message({
+        personId: person.id,
+        classId,
+        sessionId,
+        purpose,
+        channel,
+      });
+    } catch (error) {
+      setSending(false);
+      toast.error(error instanceof Error ? error.message : 'Could not log message.');
       // Logging is best-effort; the draft still opened on their phone.
       toast.info(`${recipientName}: message opened in ${channel}`);
       return;
     }
+    setSending(false);
     toast.success(`${recipientName}: opened in ${channel}`);
     onLogged?.();
   }

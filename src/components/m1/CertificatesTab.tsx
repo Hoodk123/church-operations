@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Award, Printer } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { rlsErrorMessage } from '@/lib/rls-error';
 import { useShellMember } from '@/components/layout/shell';
 import {
@@ -14,6 +13,7 @@ import {
   type M1Class,
   type M1Enrollment,
 } from '@/components/m1/m1';
+import { issueM1Certificates, updateM1CertificateOverride } from '@/lib/api/m1';
 import { CHURCH_NAME, CERTIFICATE_SIGNATORIES } from '@/lib/church';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,11 +47,10 @@ interface CertRow {
 
 export function CertificatesTab({ klass, onChanged }: CertificatesTabProps) {
   const member = useShellMember();
-  const supabase = createClient();
   const classId = klass.id;
   const requiredDays = klass.required_days;
 
-  const canIssue = member?.role === 'Admin' || member?.role === 'Pastor';
+  const canIssue = member?.role === 'Admin';
   const canAllowMakeUp = member?.role === 'Admin' || member?.role === 'Pastor' || member?.role === 'Follow-up Coordinator';
 
   const [rows, setRows] = useState<CertRow[]>([]);
@@ -63,9 +62,9 @@ export function CertificatesTab({ klass, onChanged }: CertificatesTabProps) {
   const load = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetchClassSessions(supabase, classId),
-      fetchEnrollments(supabase, classId),
-      fetchAttendance(supabase, classId),
+      fetchClassSessions(classId),
+      fetchEnrollments(classId),
+      fetchAttendance(classId),
     ])
       .then(([s, enrollments, attendanceBySession]) => {
         const closedIds = new Set(s.filter((row) => row.closed).map((row) => row.id));
@@ -85,8 +84,7 @@ export function CertificatesTab({ klass, onChanged }: CertificatesTabProps) {
         }
         const built: CertRow[] = enrollments.map((e) => {
           const count = present.get(e.person_id) ?? 0;
-          const overrideNote = (e as M1Enrollment & { certificate_override_note?: string | null })
-            .certificate_override_note ?? null;
+          const overrideNote = e.certificate_override_note ?? null;
           return {
             enrollment: e,
             present: count,
@@ -106,7 +104,7 @@ export function CertificatesTab({ klass, onChanged }: CertificatesTabProps) {
       })
       .catch((err) => toast.error(rlsErrorMessage(err)))
       .finally(() => setLoading(false));
-  }, [supabase, classId, requiredDays]);
+  }, [classId, requiredDays]);
 
   useEffect(() => {
     load();
@@ -140,13 +138,16 @@ export function CertificatesTab({ klass, onChanged }: CertificatesTabProps) {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.rpc('issue_m1_certificates', { p_enrollment_ids: ids });
-    setBusy(false);
-    if (error) {
+    let issued: number;
+    try {
+      issued = await issueM1Certificates(ids);
+    } catch (error) {
+      setBusy(false);
       toast.error(rlsErrorMessage(error));
       return;
     }
-    toast.success(`Marked ${ids.length} certificate${ids.length === 1 ? '' : 's'} as issued`);
+    setBusy(false);
+    toast.success(`Marked ${issued} certificate${issued === 1 ? '' : 's'} as issued`);
     load();
     onChanged();
   }
@@ -334,7 +335,6 @@ interface MakeUpDialogProps {
 }
 
 function MakeUpDialog({ klass, row, onClose, onSaved }: MakeUpDialogProps) {
-  const supabase = createClient();
   const member = useShellMember();
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -344,15 +344,14 @@ function MakeUpDialog({ klass, row, onClose, onSaved }: MakeUpDialogProps) {
     const override = note.trim()
       ? `${note.trim()} (allowed by ${member?.full_name ?? 'a leader'})`
       : `Make-up allowed by ${member?.full_name ?? 'a leader'}`;
-    const { error } = await supabase
-      .from('m1_enrollments')
-      .update({ certificate_override_note: override })
-      .eq('id', row.enrollment.id);
-    setSaving(false);
-    if (error) {
+    try {
+      await updateM1CertificateOverride(row.enrollment.id, override);
+    } catch (error) {
+      setSaving(false);
       toast.error(rlsErrorMessage(error));
       return;
     }
+    setSaving(false);
     toast.success(`${personName(row.enrollment.people)} can be certificated`);
     onSaved();
   }
